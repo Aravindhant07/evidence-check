@@ -1,0 +1,115 @@
+# Design (draft for approval)
+
+Approved scope: name **evidence-check** · domains **insurance claims + expense reports** ·
+evidence types **images, PDFs and audio** · free local models from Hugging Face, CPU-friendly.
+
+## Architecture
+
+```
+  Case bundle: case.json (amounts, dates, location, policy, card transactions) + evidence files
+        │
+  1. INGEST ── identify type (image / PDF / audio), hash, store, keep originals untouched
+        │
+  2. EXTRACT (multimodal models, swappable)
+        │   receipts & invoices ─ Florence-2 OCR with regions ─► code parses merchant, date, items, tax, total
+        │   photos ───────────── Florence-2 caption + CLIP zero-shot labels (loss type, "photo of a screen")
+        │   PDFs ─────────────── text layer (pypdf); scanned pages go through OCR
+        │   audio ────────────── Whisper transcript ─► code extracts amounts, dates, places, items
+        │   every image ──────── CLIP embedding + perceptual hashes
+        ▼
+  3. CHECK (plugins; each emits Findings with an evidence pointer)
+        │   item forensics ─ metadata (EXIF, PDF producer/edits), C2PA content credentials, generator tags,
+        │                    error-level analysis, noise inconsistency, copy-move, AI-image classifier
+        │   case consistency ─ arithmetic, tax tables, amount vs claim, date windows, card-transaction match,
+        │                      photo content vs claimed loss, statement vs case facts, GPS vs incident location
+        │   history ─ near-duplicate evidence across all past cases and customers (hash + embedding index)
+        ▼
+  4. SCORE ── domain policy (YAML): finding weights → verdict CLEAR / REVIEW / INVESTIGATE
+        ▼
+  5. OUTPUT ── explainable report (boxes and heatmaps on images, quoted text) · reviewer UI ·
+               REST API · MCP tools (check_case, check_file, find_similar) · feedback store
+```
+
+## Key design choices
+
+| Choice | Why |
+|---|---|
+| **Models read; code decides.** Models only turn pixels and audio into text, labels and embeddings. Arithmetic, dates, matching, forensics and scoring are deterministic code | Lesson from projects 1 to 3: small models are unreliable reasoners, competent perceivers. Every verdict is reproducible and explainable |
+| **Every extracted value is verified against its source.** A receipt total must appear in the OCR text at a known box | Prevents hallucinated values; gives each finding a highlight |
+| **Layered evidence, not one detector** | AI fakes beat single-image detectors; they rarely survive cross-checks (no card transaction, impossible tax, reused photo, metadata contradictions) |
+| **Plugins with a common Finding format** | New checks or domains without touching the core |
+| **History index** | Repeat fraud is invisible case by case: the same photo across customers is the signal |
+| **Everything local** | Evidence is sensitive; self-hosting is the main reason to choose this over SaaS |
+
+## Data model
+
+- **Case:** id, domain, claimant, amounts, dates (incident, filed, policy start/end), location (lat/lon,
+  address), description, card transactions, evidence list
+- **Evidence:** file, type, hashes, metadata, extraction (text lines with boxes, parsed fields, caption,
+  labels, transcript), embedding
+- **Finding:** check id, severity (info / low / medium / high / critical), confidence, message, pointer
+  (file + box, heatmap path, text span or case field), raw details
+- **Verdict:** score, level, top findings, version of the policy and models used
+
+## Checks in v1
+
+| Layer | Check | Signal |
+|---|---|---|
+| Item | Metadata | Editing software in EXIF/XMP, capture date vs file date, stripped metadata on a "phone photo", PDF producer, multiple incremental saves |
+| Item | Content credentials | C2PA manifest present? Signed by an AI generator (`trainedAlgorithmicMedia`)? Edits recorded? |
+| Item | Generator traces | PNG text chunks and parameters from image generators, AI-image classifier score |
+| Item | Error-level analysis / noise | Regions recompressed differently from the rest (e.g. an edited total), with a heatmap |
+| Item | Copy-move | Duplicated regions inside one image (cloned digits or damage) |
+| Case | Receipt arithmetic | Line items + tax ≠ total; tax rate not valid for the jurisdiction (tax table in YAML) |
+| Case | Amount | Evidence total vs claimed or reimbursed amount |
+| Case | Dates | Receipt / photo capture / incident / policy period / filing date are in an impossible order |
+| Case | Card match | No card transaction matches the receipt (amount, date ± window, merchant) |
+| Case | Photo vs claim | Photo labels contradict the claimed loss (fire photo for a water claim); re-photographed screen |
+| Case | Statement | Amounts, dates, places or items in the voice statement contradict the written claim |
+| Case | Location | Photo GPS far from the incident location |
+| History | Near-duplicates | Same or near-same image (pHash + CLIP) in another case, especially another customer's |
+| History | Fingerprints | Same device serial or receipt template across unrelated claimants |
+
+## Benchmark
+
+A generator builds realistic cases, then plants manipulations with known ground truth:
+- **Evidence:** synthetic receipts rendered as phone photos with realistic metadata; damage photos
+  from public datasets; voice statements synthesised with an open text-to-speech model and transcribed
+  back with Whisper.
+- **Manipulations:**
+  - altered total (pixel edit)
+  - "AI-generated" receipt (generator metadata, or a C2PA manifest marking AI creation, and no card transaction)
+  - impossible tax
+  - reused photo (cropped, resized, recompressed) across customers
+  - photo taken before the policy started
+  - wrong loss type in the photo
+  - GPS mismatch
+  - statement contradiction
+- **Metrics:** detection recall and precision per manipulation type, false-alarm rate on clean cases, and a
+  **layer ablation**: single-image detectors only → + metadata → + cross-evidence → + history.
+
+## Interfaces
+
+- **CLI:** `evcheck check CASE_DIR`, `evcheck serve` (UI + API), `evcheck mcp`, `evcheck bench`, `evcheck demo`
+- **Reviewer UI (FastAPI + Jinja):**
+  - a queue sorted by risk
+  - a case page with evidence thumbnails, highlighted regions and heatmaps
+  - findings to confirm or dismiss; feedback is stored and per-check precision shown
+- **REST API and MCP server**, for AI agents.
+
+## Tech
+
+Python 3.11+, Pillow, OpenCV (headless), ImageHash, c2pa-python, pypdf, NumPy, transformers + torch (CPU),
+FastAPI, Typer, SQLite. Default models are small enough for a laptop CPU and configurable:
+Florence-2-base (OCR and captions), CLIP ViT-B/32 (embeddings and zero-shot labels), Whisper-base
+(speech), an open AI-image classifier, and an open text-to-speech model (benchmark only).
+
+## Milestones
+
+1. Core data model, ingest, case bundles, plugin registry, Finding/Verdict, scoring policy + domain YAML
+2. Deterministic checks: metadata, C2PA, generator traces, error-level analysis, noise, copy-move, arithmetic, dates, card match, GPS
+3. Model extractors: Florence-2 OCR → receipt parser with box verification; captions; CLIP labels and embeddings; Whisper
+4. History index (near-duplicates, fingerprints) + statement check
+5. Benchmark generator + metrics + layer ablation
+6. Report with highlights, reviewer UI, REST API, MCP server
+7. Real-model benchmark run, README with results, push
