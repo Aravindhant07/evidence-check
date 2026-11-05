@@ -1,0 +1,18 @@
+# Pinned models. Every model: exact revision, safetensors weights, no remote code.
+# Changing an entry should go through `evcheck eval models` (the swap gate).
+ocr_caption:
+  id: florence-community/Florence-2-base
+  revision: 00921df66db728a9ceb750f5eca43e5c203a2051         # native transformers port of microsoft/Florence-2-base (MIT)
+  job: read receipts and documents (OCR with regions); describe photos
+image_text:
+  id: laion/CLIP-ViT-B-32-laion2B-s34B-b79K
+  revision: 1a25a446712ba5ee05982a381eed697ef9b435cf         # MIT; OpenAI CLIP repos ship no safetensors weights
+  job: zero-shot photo labels; image embeddings for duplicate search
+speech:
+  id: openai/whisper-base
+  revision: e37978b90ca9030d5170a5c07aadb050351a65bb         # Apache-2.0
+  job: transcribe voice statements
+ai_image:
+  id: NYUAD-ComNets/NYUAD_AI-generated_images_detector
+  revision: b0a2e665f6e40164436cae6c0c95e7e4386f7684         # Apache-2.0; one weak signal among many
+  job: AI-generated image score

@@ -20,7 +20,7 @@ from .synth import (CITIES, ITEMS, MERCHANTS, PHONES, ReceiptSpec, edit_region, 
 
 CLAIM_MANIPULATIONS = ["edited_total", "generator_receipt", "flat_receipt_no_card", "wrong_tax", "no_card_txn",
                        "photo_before_policy", "photo_before_incident", "gps_mismatch", "amount_inflated", "copy_move_photo",
-                       "edited_photo_software", "reused_photo"]
+                       "edited_photo_software", "reused_photo", "wrong_loss_type"]
 EXPENSE_MANIPULATIONS = ["edited_total", "generator_receipt", "flat_receipt_no_card", "wrong_tax", "no_card_txn",
                          "receipt_date_mismatch", "amount_inflated", "reused_receipt"]
 
@@ -53,7 +53,10 @@ def _receipt_lines(spec: ReceiptSpec, img_boxes: dict, flat: Image.Image) -> lis
 
 
 class Builder:
-    def __init__(self, out: Path, seed: int = 11):
+    def __init__(self, out: Path, seed: int = 11, real_photos: list[Path] | None = None):
+        """real_photos: real damage photos (e.g. bench.photos.fetch_car_photos()). When given, every claim is a
+        vehicle claim illustrated with real photos, which is what content checks (CLIP labels) need."""
+        self.real_photos = list(real_photos or [])
         self.out = Path(out)
         self.rng = random.Random(seed)
         random.seed(seed)
@@ -103,7 +106,8 @@ class Builder:
         d.mkdir(parents=True)
         jur = r.choice(list(CITIES))
         city, lat, lon, _ = CITIES[jur]
-        loss = r.choice(["water_damage", "fire", "theft", "vehicle_collision"])
+        loss = "vehicle_collision" if self.real_photos else r.choice(["water_damage", "fire", "theft", "vehicle_collision"])
+        claimed_loss = r.choice(["water_damage", "fire"]) if manipulation == "wrong_loss_type" else loss
         pstart = date(2025, r.randint(1, 12), r.randint(1, 28))
         incident = pstart + timedelta(days=r.randint(60, 500))
         filed = incident + timedelta(days=r.randint(1, 14))
@@ -133,10 +137,17 @@ class Builder:
                 im = im.crop((int(w * 0.04), int(h * 0.05), int(w * 0.97), int(h * 0.96))).resize((int(w * 0.85), int(h * 0.85)))
                 save_jpeg(im, d / name, quality=82, exif=exif_bytes(when, phone, gps))
             else:
-                img = scene_photo(r, loss)
+                if self.real_photos:
+                    img = Image.open(r.choice(self.real_photos)).convert("RGB")
+                    if img.width < 1000:
+                        img = img.resize((1024, round(1024 * img.height / img.width)), Image.LANCZOS)
+                else:
+                    img = scene_photo(r, loss)
                 if manipulation == "copy_move_photo" and i == 0:
-                    patch = img.crop((100, 120, 300, 300))
-                    img.paste(patch, (600, 380))
+                    w0, h0 = img.size
+                    x0, y0 = r.randint(40, w0 // 3), r.randint(40, h0 // 3)
+                    patch = img.crop((x0, y0, x0 + 200, y0 + 180))
+                    img.paste(patch, (min(w0 - 210, x0 + r.randint(300, 500)), min(h0 - 190, y0 + r.randint(80, 300))))
                 save_jpeg(img, d / name, quality=90, exif=exif_bytes(when, phone, gps, software))
                 if not manipulation:
                     self.photo_pool.append((str(d / name), claimant))
@@ -170,7 +181,7 @@ class Builder:
             claimed = round(claimed * r.choice([1.5, 2.0, 3.0]), 2)
         case = {"case_id": cid, "domain": "insurance_claims", "claimant_id": claimant, "claimant_name": f"Customer {claimant}",
                 "segment": {"region": jur, "channel": r.choice(["app", "agent", "web"])},
-                "claimed_amount": claimed, "loss_type": loss, "description": f"{loss.replace('_', ' ')} at insured property",
+                "claimed_amount": claimed, "loss_type": claimed_loss, "description": f"{claimed_loss.replace('_', ' ')} at insured property",
                 "incident_date": str(incident), "filed_date": str(filed), "policy": {"start": str(pstart), "end": str(pstart + timedelta(days=730))},
                 "location": {"lat": lat, "lon": lon, "address": city}, "jurisdiction": jur, "card_transactions": txns, "evidence": evidence}
         (d / "case.json").write_text(json.dumps(case, indent=1))
@@ -240,9 +251,9 @@ class Builder:
         return d
 
 
-def build_suite(out: str | Path, clean_per_domain: int = 12, seed: int = 11) -> list[Path]:
+def build_suite(out: str | Path, clean_per_domain: int = 12, seed: int = 11, real_photos: list[Path] | None = None) -> list[Path]:
     """Clean cases first (they seed the history pools), then one case per manipulation, per domain."""
-    b = Builder(Path(out), seed)
+    b = Builder(Path(out), seed, real_photos)
     dirs = [b.claim() for _ in range(clean_per_domain)] + [b.expense() for _ in range(clean_per_domain)]
     dirs += [b.claim(m) for m in CLAIM_MANIPULATIONS] + [b.expense(m) for m in EXPENSE_MANIPULATIONS]
     return dirs

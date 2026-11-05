@@ -89,6 +89,7 @@ class Extraction(BaseModel):
     labels: dict[str, float] = Field(default_factory=dict)  # zero-shot label -> probability
     transcript: str | None = None
     ai_generated_score: float | None = None
+    embedding: list[float] | None = Field(default=None, exclude=True)  # image embedding for duplicate search (not serialised)
     models: dict[str, str] = Field(default_factory=dict)  # job -> model id@revision
 
 
