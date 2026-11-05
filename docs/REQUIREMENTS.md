@@ -26,6 +26,19 @@
 | R11 | **API + MCP server:** `check_case`, `check_evidence`, `find_similar` for agents and other systems |
 | R12 | **Benchmark:** generator of realistic cases with planted manipulations (from public receipt datasets plus programmatic edits) with per-type detection metrics and a layer ablation |
 
+## Production layer (what a real deployment needs)
+
+| ID | Requirement |
+|---|---|
+| P1 | **Deployment:** Docker Compose (API + UI, background workers, database); job queue for volume; offline model bundle for air-gapped installs; health and readiness endpoints |
+| P2 | **Integration:** REST/webhook intake, watched folder (or S3-style bucket) intake, results pushed back by webhook; a sample connector for a claims/expense system; bulk backfill of historical cases (which also seeds the history index) |
+| P3 | **Calibration and business case:** import past cases with known outcomes; precision/recall per check and overall; choose the flag threshold that matches reviewer capacity (e.g. 40 cases a day); ROI estimate (fraud prevented vs review cost vs false-alarm friction) |
+| P4 | **Security and privacy:** role-based access (reviewer, investigator, admin); API keys; PII masking in logs, UI and exports; tamper-evident audit log of every check, view and decision; data retention policy with deletion |
+| P5 | **Monitoring and drift:** flag rate per check and per domain over time; alerts on sudden shifts (new generator, new fraud ring, broken model); model and policy versions on every verdict |
+| P6 | **Adversarial robustness:** test suite where fraudsters adapt: screenshot of a fake, re-photograph of a screen, stripped metadata, crops and resizes, recompression; report which checks survive |
+| P7 | **Responsible use:** the system never auto-denies; verdicts route to humans; flag-rate comparison across customer segments (fairness report); exportable decision record for regulators and complaints |
+| P8 | **Rollout playbook:** discovery questionnaire, data checklist, a shadow-mode pilot plan graded with shadow-eval, success metrics, operations runbook |
+
 ## Non-functional
 
 - Runs on CPU, free, offline after model download; GPU optional
@@ -47,3 +60,4 @@
 | Domains | **Insurance claims + expense reports** (one engine, two domain configs) |
 | Evidence types in v1 | **Images, PDFs and audio** |
 | Models | Free local open models from Hugging Face; CPU by default, GPU optional |
+| Production layer | **All of P1–P8** (deploy and integrate, calibrate and ROI, security and monitoring, robustness and playbook) |

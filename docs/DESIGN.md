@@ -88,6 +88,31 @@ A generator builds realistic cases, then plants manipulations with known ground 
 - **Metrics:** detection recall and precision per manipulation type, false-alarm rate on clean cases, and a
   **layer ablation**: single-image detectors only → + metadata → + cross-evidence → + history.
 
+## Production layer
+
+```
+  intake: REST / webhook · watched folder · connector · bulk backfill
+        │
+        ▼
+  API (FastAPI) ──► job queue (SQLite-backed; Redis optional) ──► workers (N, CPU) ──► results DB
+        │                                                                  │
+        ├── auth: API keys + roles (reviewer · investigator · admin)        ├── webhook back to the source system
+        ├── PII masking in logs, UI, exports                               └── metrics: flag rate per check/day
+        └── audit log (hash-chained): checks, views, decisions                   └── drift alerts
+```
+
+| Area | How |
+|---|---|
+| Deployment | `docker compose up`: api, worker(s), volume for data and models; `evcheck models download` builds an offline bundle; `/healthz`, `/readyz` |
+| Volume | Background workers pull jobs from a durable queue; models load once per worker; batch backfill command |
+| Integration | `POST /cases` (JSON + files) and signed webhooks out; folder watcher; example connector that pulls from a mock claims API and writes verdicts back |
+| Calibration | `evcheck calibrate past_cases/`: per-check precision/recall, a threshold sweep, the threshold for a given daily review capacity, an ROI table (inputs: average fraud loss, review cost per case, cases per day) |
+| Security | Role checks on every endpoint; masking rules in the domain YAML (names, card numbers, addresses); audit of who viewed or decided what; retention job deletes expired evidence |
+| Monitoring | Daily flag rates per check stored; a drift alert when a rate moves beyond a control band (e.g. 3σ over a 30-day baseline); dashboard page |
+| Robustness | Adversarial transforms in the benchmark (screenshot, re-photo simulation, metadata strip, crop/resize, recompress); a table of which checks still fire |
+| Responsible use | Verdicts are recommendations; no automatic denial path in the API; fairness report of flag rates by segment (region, channel, claim size); decision record export |
+| Playbook | `docs/playbook/`: discovery questionnaire, data checklist, pilot plan (shadow mode, graded with shadow-eval), success metrics, runbook |
+
 ## Interfaces
 
 - **CLI:** `evcheck check CASE_DIR`, `evcheck serve` (UI + API), `evcheck mcp`, `evcheck bench`, `evcheck demo`
@@ -112,4 +137,7 @@ Florence-2-base (OCR and captions), CLIP ViT-B/32 (embeddings and zero-shot labe
 4. History index (near-duplicates, fingerprints) + statement check
 5. Benchmark generator + metrics + layer ablation
 6. Report with highlights, reviewer UI, REST API, MCP server
-7. Real-model benchmark run, README with results, push
+7. Production layer I: job queue + workers, intake (REST/webhook/folder), connector, backfill, Docker Compose, offline model bundle
+8. Production layer II: auth and roles, PII masking, audit log, retention; monitoring and drift alerts
+9. Production layer III: calibration + threshold-for-capacity + ROI; adversarial robustness suite; fairness report
+10. Playbook docs; real-model benchmark run; README with results; push
