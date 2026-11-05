@@ -149,6 +149,35 @@ A generator builds realistic cases, then plants manipulations with known ground 
 - **Team lead dashboard:** capacity vs queue, flag-rate trends, per-check precision, drift alerts.
 - **Standards:** WCAG 2.1 AA, responsive, light/dark; helpful empty and error states.
 
+## Agents and safe self-improvement
+
+```
+                 ┌──────────── deterministic verdict engine (unchanged by agents at run time) ────────────┐
+                 │                                                                                       │
+  flagged case ─►│ INVESTIGATOR AGENT ── read-only tools: find_similar · related_cases · card_transactions │
+                 │   └► investigation brief; every sentence must cite evidence (citation check in code)  │
+                 └───────────────────────────────────────────────────────────────────────────────────────┘
+
+  RED-TEAM AGENT ── tools: transform evidence, run engine ──► evasions ─┐
+  reviewer outcomes (confirmed only) ──────────────────────────────────┼─► IMPROVEMENT AGENT ─► proposal (YAML diff)
+  missed fraud found later ────────────────────────────────────────────┘                          │
+                                                                                                   ▼
+                    EVALUATION GATE (code): benchmark · past outcomes · golden sets · fairness · adversarial suite
+                                                                                                   │ pass
+                                                                                                   ▼
+                          human approval (UI) ─► shadow mode ─► live with monitoring ─► rollback in one click
+```
+
+| Piece | How |
+|---|---|
+| Agent runtime | Small tool-calling loop (as in legacy-bridge); local open model by default; tools exposed over MCP so any agent client can be used |
+| Investigator | Read-only tools only; output is a brief with evidence links; a code check drops sentences whose cited evidence does not support them |
+| Red team | Composes transforms (crop, rescale, recompress, screenshot frame, re-photo blur/perspective, metadata strip/forge, layout change, injected instructions) guided by which checks fired; keeps variants that evade |
+| Improvement proposals | Typed and limited: add/adjust rule, threshold, weight, suppression, new red-team case for the eval set. Free-form code changes are not allowed |
+| Search before creativity | Threshold and weight proposals come from a systematic search over past outcomes; the agent explains and packages them, and proposes new rules where search cannot |
+| Gate | Rejects any proposal that lowers recall on any manipulation type, raises false alarms beyond tolerance, worsens fairness, or fails the adversarial suite |
+| Governance | Proposals are versioned; approvals are audited; rollback restores the previous policy version instantly |
+
 ## Interfaces
 
 - **CLI:** `evcheck check CASE_DIR`, `evcheck serve` (UI + API), `evcheck mcp`, `evcheck bench`, `evcheck demo`
@@ -177,5 +206,6 @@ Florence-2-base (OCR and captions), CLIP ViT-B/32 (embeddings and zero-shot labe
 8. Production layer II: auth and roles, PII masking, audit log, retention; monitoring and drift alerts
 9. Production layer III: calibration + threshold-for-capacity + ROI; adversarial robustness suite; fairness report
 10. AI evaluation (model golden sets, swap gate, model cards) and AI security (threat model, injection and file-safety tests, model pinning)
-11. Product polish: first-run demo, plain-language explanations, keyboard review flow, settings with impact preview, team lead dashboard, accessibility pass
-12. Playbook docs; real-model benchmark run; README with results; push
+11. Agents: investigator (with citation check), red team, improvement proposals, evaluation gate, approval + shadow + rollback
+12. Product polish: first-run demo, plain-language explanations, keyboard review flow, settings with impact preview, team lead dashboard, accessibility pass
+13. Playbook docs; real-model benchmark and agent runs; README with results; push

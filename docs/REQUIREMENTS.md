@@ -76,6 +76,20 @@
 | U8 | **Accessible and responsive:** WCAG 2.1 AA (contrast, keyboard, screen reader labels), works on a laptop and a tablet, light and dark |
 | U9 | **Helpful states:** empty states that explain what to do, clear error messages, progress for long checks |
 
+## Agents and safe self-improvement
+
+The verdict engine stays deterministic. Agents work around it, using tools, and never make the final decision.
+
+| ID | Requirement |
+|---|---|
+| A1 | **Investigator agent:** for a flagged case, explores with read-only tools (find similar evidence, related cases, card transactions, claimant history) and writes an investigation brief where every statement links to evidence. Unsupported statements are removed by a citation check |
+| A2 | **Red-team agent:** generates new attack variants (re-photos, crops, new receipt layouts, injected text, metadata tricks) against the engine; every evasion is recorded and added to the evaluation set |
+| A3 | **Improvement agent:** from confirmed outcomes, missed fraud and red-team evasions, proposes changes (new rules, thresholds, check weights, suppression rules for noisy checks) as versioned proposals |
+| A4 | **Evaluation gate (code, not the agent):** every proposal is scored on the benchmark, past outcomes, golden sets and the fairness report; it is rejected on any regression beyond tolerance |
+| A5 | **Human approval and controlled rollout:** approved proposals run in shadow mode first, then go live with monitoring and one-click rollback |
+| A6 | **Learning hygiene:** learn only from human-confirmed outcomes (protects against poisoning by fraudsters); never change production automatically; every change records its evidence, scores and approver |
+| A7 | **Measured:** proposals made, proposals passing the gate, approved changes, and the detection gain of each, reported over time |
+
 ## Non-functional
 
 - Runs on CPU, free, offline after model download; GPU optional
@@ -99,3 +113,4 @@
 | Models | Free local open models from Hugging Face; CPU by default, GPU optional |
 | Production layer | **All of P1–P8** (deploy and integrate, calibrate and ROI, security and monitoring, robustness and playbook) |
 | AI evaluation, AI security, product/UX | **E1–E6, S1–S7, U1–U9** |
+| Agents | **Investigator, red-team and improvement agents (A1–A7)**; self-improvement only through the evaluation gate and human approval |
