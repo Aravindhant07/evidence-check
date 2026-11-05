@@ -1,4 +1,4 @@
-# Design (draft for approval)
+# Design: evidence-check
 
 Approved scope: name **evidence-check** · domains **insurance claims + expense reports** ·
 evidence types **images, PDFs and audio** · free local models from Hugging Face, CPU-friendly.
