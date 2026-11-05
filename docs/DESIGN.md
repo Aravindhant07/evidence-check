@@ -113,6 +113,42 @@ A generator builds realistic cases, then plants manipulations with known ground 
 | Responsible use | Verdicts are recommendations; no automatic denial path in the API; fairness report of flag rates by segment (region, channel, claim size); decision record export |
 | Playbook | `docs/playbook/`: discovery questionnaire, data checklist, pilot plan (shadow mode, graded with shadow-eval), success metrics, runbook |
 
+## AI evaluation
+
+```
+  per-model golden sets ──► model swap gate (config change or CI) ──► model card updated
+  benchmark (planted fakes) ──► per-type recall · false alarms · layer ablation
+  reviewer decisions ──► live precision per check ──► drift alert
+  verdicts vs reviewer decisions ──► shadow-eval readiness report
+```
+
+- `evcheck eval models`: OCR field accuracy, label accuracy, word error rate, detector ROC, on versioned sets under `evals/`.
+- `evcheck eval system`: the benchmark and the layer ablation.
+- **The gate:** `models.yaml` changes fail CI if any metric drops more than its tolerance.
+
+## Threat model (summary; full version in `docs/THREAT_MODEL.md`)
+
+| Threat | Mitigation |
+|---|---|
+| Prompt injection in evidence text | Models only extract; verdicts come from code; text from evidence is never used as an instruction. A test plants injection text in receipts and photos |
+| Evading the AI-image detector | Detector is one weak signal among many; screenshots and re-photos are in the adversarial suite; no check can clear a case alone |
+| Poisoned or swapped model weights | Pinned revisions + SHA-256; safetensors only; no remote code; verified offline bundle |
+| Malicious files (bombs, scripted PDFs, polyglots) | Size/pixel limits, content sniffing, no script execution, worker isolation and timeouts |
+| Data leakage | No network calls at inference; masking; audit of views; retention |
+| Insider misuse | Roles; every view and decision audited and hash-chained |
+| Automated harm to honest customers | No auto-deny path; humans decide; fairness report; appeal-ready decision record |
+
+## Product and UX
+
+- **First run:** `evcheck demo` seeds sample claims and expense reports, starts the UI and opens the highest-risk case.
+- **Case page layout:** a one-line summary of why it was flagged; evidence viewer with toggleable boxes and
+  heatmaps; reasons ranked; each reason has a plain sentence, a "show details" for the technical evidence,
+  and confirm/dismiss with a reason. Duplicates open side by side with the earlier case.
+- **Reviewer flow:** `J/K` next/previous, `C` confirm, `D` dismiss, `?` shortcuts; time-to-decision recorded.
+- **Admin settings:** thresholds and checks with an impact preview ("this would flag 31 of the last 500 cases, about 6 a day").
+- **Team lead dashboard:** capacity vs queue, flag-rate trends, per-check precision, drift alerts.
+- **Standards:** WCAG 2.1 AA, responsive, light/dark; helpful empty and error states.
+
 ## Interfaces
 
 - **CLI:** `evcheck check CASE_DIR`, `evcheck serve` (UI + API), `evcheck mcp`, `evcheck bench`, `evcheck demo`
@@ -140,4 +176,6 @@ Florence-2-base (OCR and captions), CLIP ViT-B/32 (embeddings and zero-shot labe
 7. Production layer I: job queue + workers, intake (REST/webhook/folder), connector, backfill, Docker Compose, offline model bundle
 8. Production layer II: auth and roles, PII masking, audit log, retention; monitoring and drift alerts
 9. Production layer III: calibration + threshold-for-capacity + ROI; adversarial robustness suite; fairness report
-10. Playbook docs; real-model benchmark run; README with results; push
+10. AI evaluation (model golden sets, swap gate, model cards) and AI security (threat model, injection and file-safety tests, model pinning)
+11. Product polish: first-run demo, plain-language explanations, keyboard review flow, settings with impact preview, team lead dashboard, accessibility pass
+12. Playbook docs; real-model benchmark run; README with results; push
