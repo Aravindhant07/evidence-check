@@ -1,0 +1,39 @@
+# Insurance claims policy. Thresholds and weights are starting points: calibrate on your own
+# historical outcomes with `evcheck calibrate`. Tax rates are illustrative combined sales-tax
+# rates; verify them for production use.
+name: insurance_claims
+version: "1"
+description: Property and auto claims with receipts/invoices, damage photos and voice statements.
+
+thresholds: {review: 0.35, investigate: 0.75}
+
+tolerances:
+  amount_pct: 0.02
+  amount_abs: 1.0
+  card_days: 3
+  max_photo_age_days: 365
+  max_filing_delay_days: 60
+  gps_km: 25
+  duplicate_phash: 8
+  duplicate_clip: 0.95
+  ela_ratio: 3.0
+  ai_score: 0.8
+
+tax_rates:
+  US-NY: [0.08875, 0.08, 0.04]
+  US-CA: [0.095, 0.0725, 0.1025]
+  US-TX: [0.0825, 0.0625]
+  US-IL: [0.1025, 0.0625]
+  US-WA: [0.1035, 0.065]
+  US-OR: [0.0]
+
+# Zero-shot photo labels (CLIP prompts) that support each claimed loss type.
+loss_labels:
+  water_damage: ["a photo of water damage in a home", "a photo of a flooded floor", "a photo of a leaking pipe"]
+  fire: ["a photo of fire damage", "a photo of a burned room", "a photo of soot and smoke damage"]
+  theft: ["a photo of a broken door lock", "a photo of a broken window", "a photo of an empty room after a burglary"]
+  vehicle_collision: ["a photo of a damaged car", "a photo of a dented car bumper", "a photo of a car accident"]
+  windshield: ["a photo of a cracked car windshield"]
+  storm: ["a photo of storm damage to a roof", "a photo of a fallen tree on a house"]
+
+mask_fields: [claimant_name]

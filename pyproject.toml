@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evidence-check"
+version = "0.1.0"
+description = "Self-hosted evidence integrity engine: is each receipt, photo, document and statement authentic, does the case agree with itself, and have we seen this evidence before?"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "pydantic>=2.6",
+  "pyyaml>=6",
+  "pillow>=10",
+  "numpy>=1.26",
+  "opencv-python-headless>=4.9",
+  "imagehash>=4.3",
+  "piexif>=1.1",
+  "pypdf>=4",
+  "c2pa-python>=0.10",
+  "typer>=0.12",
+  "jinja2>=3.1",
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+models = ["torch>=2.2", "transformers>=4.45", "accelerate>=0.30", "soundfile>=0.12"]
+mcp = ["mcp>=2.0"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+evcheck = "evidence_check.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["evidence_check*"]
+
+[tool.setuptools.package-data]
+evidence_check = ["web/templates/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

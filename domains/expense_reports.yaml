@@ -1,0 +1,39 @@
+# Employee expense reports. Card matching matters most here: an AI-generated receipt has no
+# matching card transaction. Tax rates are illustrative; verify them for production use.
+name: expense_reports
+version: "1"
+description: Employee expense claims with receipt images or PDFs and corporate card data.
+
+checks:
+  photo_vs_claim: false  # no damage photos in this domain
+  gps_location: false
+
+thresholds: {review: 0.30, investigate: 0.70}
+
+tolerances:
+  amount_pct: 0.0
+  amount_abs: 0.01
+  card_days: 3
+  max_filing_delay_days: 90
+  duplicate_phash: 8
+  duplicate_clip: 0.95
+  ela_ratio: 3.0
+  ai_score: 0.8
+
+check_weights:
+  card_match: 1.3  # missing card transaction is the strongest expense-fraud signal
+
+tax_rates:
+  US-NY: [0.08875, 0.08, 0.04]
+  US-CA: [0.095, 0.0725, 0.1025]
+  US-TX: [0.0825, 0.0625]
+  US-IL: [0.1025, 0.0625]
+  US-WA: [0.1035, 0.065]
+  US-OR: [0.0]
+
+loss_labels:
+  meals: ["a photo of a restaurant receipt"]
+  lodging: ["a photo of a hotel invoice"]
+  travel: ["a photo of a taxi receipt", "a photo of an airline receipt"]
+
+mask_fields: [claimant_name]
