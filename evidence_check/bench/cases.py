@@ -225,10 +225,12 @@ class Builder:
             src, _, src_case = r.choice(self.receipt_pool)
             im = Image.open(src).convert("RGB")
             w, h = im.size
-            im = im.crop((int(w * 0.03), int(h * 0.02), int(w * 0.98), int(h * 0.97)))
+            x0, y0 = int(w * 0.03), int(h * 0.02)
+            im = im.crop((x0, y0, int(w * 0.98), int(h * 0.97)))
             fname = "receipt_1.jpg"
             save_jpeg(im, d / fname, quality=84, exif=exif_bytes(when, phone, None))
-            lines = json.loads((Path(src).parent / "truth.json").read_text())["ocr"][Path(src).name]
+            lines = [[t, [b[0] - x0, b[1] - y0, b[2] - x0, b[3] - y0] if b else b]  # boxes follow the crop
+                     for t, b in json.loads((Path(src).parent / "truth.json").read_text())["ocr"][Path(src).name]]
             total = src_case["claimed_amount"]
             day = date.fromisoformat(src_case["incident_date"])
             spec_merchant = src_case["merchant"]

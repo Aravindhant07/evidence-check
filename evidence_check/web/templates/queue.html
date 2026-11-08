@@ -12,9 +12,9 @@ td.reason { max-width: 520px; } tr:hover td { background: var(--bg); }
 <p class="muted">Highest risk first. Each verdict is a recommendation: a person decides every case.</p>
 <div class="filters" role="navigation" aria-label="Filter by verdict">
   <a href="/" {% if not level %}aria-current="page"{% endif %}><span class="chip none">All</span></a>
-  <a href="/?level=investigate" {% if level == 'investigate' %}aria-current="page"{% endif %}><span class="chip investigate">Investigate · {{ counts.investigate }}</span></a>
-  <a href="/?level=review" {% if level == 'review' %}aria-current="page"{% endif %}><span class="chip review">Review · {{ counts.review }}</span></a>
-  <a href="/?level=clear" {% if level == 'clear' %}aria-current="page"{% endif %}><span class="chip clear">Clear · {{ counts.clear }}</span></a>
+  <a href="/?level=investigate" {% if level == 'investigate' %}aria-current="page"{% endif %}><span class="chip investigate">Investigate · {{ counts['investigate'] }}</span></a>
+  <a href="/?level=review" {% if level == 'review' %}aria-current="page"{% endif %}><span class="chip review">Review · {{ counts['review'] }}</span></a>
+  <a href="/?level=clear" {% if level == 'clear' %}aria-current="page"{% endif %}><span class="chip clear">Clear · {{ counts['clear'] }}</span></a>
 </div>
 <div class="panel" style="padding:0; overflow-x:auto">
 {% if rows %}

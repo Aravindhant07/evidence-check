@@ -94,7 +94,10 @@ def test_local_mode_ui_and_api(svc):
     top = c.get("/api/cases").json()[0]
     page = c.get(f"/cases/{top['case_id']}")
     assert page.status_code == 200 and "Reasons" in page.text and "Confirm" in page.text
-    assert c.get("/dashboard").status_code == 200
+    dash = c.get("/dashboard")
+    assert dash.status_code == 200
+    for html in (q.text, dash.text, page.text):  # no Python objects leaking into pages (e.g. dict.clear)
+        assert "built-in method" not in html and " object at 0x" not in html
     assert "<html" in c.get(f"/cases/{top['case_id']}/report.html").text
     r = c.post(f"/cases/{top['case_id']}/findings/0", data={"decision": "dismiss", "reason": "known customer"}, follow_redirects=False)
     assert r.status_code == 303
