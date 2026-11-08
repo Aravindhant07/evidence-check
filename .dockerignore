@@ -1,0 +1,8 @@
+.git
+**/__pycache__
+*.pyc
+bench-out
+robust-out
+demo-data
+data
+.pytest_cache

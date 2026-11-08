@@ -1,0 +1,27 @@
+# docker compose build
+# docker compose run --rm -e HF_HUB_OFFLINE=0 api evcheck models download   once, with network access
+# docker compose run --rm api evcheck keys add --role admin --data /data     the server will not start without a key
+# docker compose up -d                                   UI + API on http://localhost:8000, one worker
+# docker compose up -d --scale worker=3                  more throughput (workers share the queue)
+services:
+  api:
+    build: .
+    image: evidence-check:latest
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: [evcheck-data:/data, evcheck-models:/models]
+    environment:
+      HF_HUB_OFFLINE: "1"
+    command: ["evcheck", "serve", "--host", "0.0.0.0", "--data", "/data", "--workers", "0", "--models", "real"]
+    restart: unless-stopped
+  worker:
+    image: evidence-check:latest
+    depends_on: [api]
+    volumes: [evcheck-data:/data, evcheck-models:/models]
+    environment:
+      HF_HUB_OFFLINE: "1"
+      # EVCHECK_WEBHOOK_SECRET: set to sign verdict webhooks (with --webhook-url below)
+    command: ["evcheck", "worker", "--data", "/data", "--models", "real"]
+    restart: unless-stopped
+volumes:
+  evcheck-data:
+  evcheck-models:

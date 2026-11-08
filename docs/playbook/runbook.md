@@ -3,9 +3,10 @@
 ## Deploy
 
 ```bash
+docker compose build
+docker compose run --rm -e HF_HUB_OFFLINE=0 api evcheck models download   # once, with network access; then offline
+docker compose run --rm api evcheck keys add --role admin --data /data     # required: no keys, no network listening
 docker compose up -d                     # api (UI + REST) and one worker, data in the evcheck-data volume
-docker compose run --rm api evcheck models download   # once, with network access; then the stack runs offline
-docker compose run --rm api evcheck keys add --role admin
 docker compose up -d --scale worker=3    # more throughput: workers share the queue safely
 ```
 

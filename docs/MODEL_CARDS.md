@@ -13,6 +13,22 @@ model or its revision changes (see milestone 10 in DESIGN.md).
 | `speech` | openai/whisper-base | Transcribing voice statements | English transcription on CPU. | Amounts, dates and loss words are extracted from the transcript by code (`checks/statement.py`). |
 | `ai_image` | NYUAD-ComNets/NYUAD_AI-generated_images_detector | "Was this image generated?" | **On 60 genuine car-damage photos it scores 22% at ≥ 0.8 and 13% at ≥ 0.99** (median 0.03). Receipts score ~0.002. | **Advisory only.** Reported at INFO severity with zero score weight; it never changes a verdict. AI generation is caught by content credentials, generator metadata and cross-evidence checks instead. |
 
+## Golden sets (the model swap gate)
+
+`evcheck eval models` measures each model on a fixed set and compares with `evidence_check/evals_baseline.json`;
+a worse result beyond its tolerance fails the gate. Baseline on CPU:
+
+| Set | Metric | Baseline | Tolerance |
+|---|---|---|---|
+| 16 photographed receipts (seed 101) | OCR field accuracy (total, subtotal, tax, date, merchant) | 97.5% | -3 pts |
+| same | totals read exactly | 100% | -5 pts |
+| 30 real car-damage photos | CLIP top loss-type label correct | 100% | -5 pts |
+| 8 spoken statements (seed 7, open TTS voice) | Whisper word error rate | 25.5% | +3 pts |
+| same | facts the statement check needs (amount, date, loss type) recovered | 87.5% | -5 pts |
+| 60 real car-damage photos | AI-image detector false positives (score >= 0.8) | 21.7% | +5 pts |
+
+The word error rate is high because the synthetic voice is robotic; what matters for the system is the fact accuracy.
+
 ## Known weaknesses
 
 - AI-image detectors do not transfer across cameras, compression and content; the one above is a clear example.

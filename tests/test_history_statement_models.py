@@ -218,3 +218,16 @@ def test_read_receipt_second_look():
     lines, how = Stub().read_receipt(Image.new("RGB", (100, 200)))
     assert how == "retried with repetition penalty" and calls[1] == {"repetition_penalty": 1.2}
     assert any("19.81" in l.text for l in lines)
+
+
+def test_model_swap_gate():
+    from evidence_check import evals
+
+    base = evals.load_baseline()
+    assert base and evals.compare(base, base) == (True, [])
+    worse = json_copy = __import__("json").loads(__import__("json").dumps(base))
+    worse["ocr"]["total_accuracy"] -= 0.2           # a new OCR model that misreads totals
+    worse["ai_image"]["false_positive_rate"] += 0.1  # and a noisier detector
+    ok, problems = evals.compare(worse, base)
+    assert not ok and len(problems) == 2
+    assert evals.wer("the repairs came to about", "the repair came to about") == 0.2

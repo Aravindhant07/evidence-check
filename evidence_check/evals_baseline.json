@@ -1,0 +1,48 @@
+{
+ "ocr": {
+  "field_accuracy": 0.975,
+  "total_accuracy": 1.0,
+  "n": 16,
+  "seconds": 126.7
+ },
+ "labels": {
+  "accuracy": 1.0,
+  "n": 30,
+  "seconds": 5.9
+ },
+ "speech": {
+  "wer": 0.255,
+  "fact_accuracy": 0.875,
+  "n": 8,
+  "seconds": 156.7
+ },
+ "ai_image": {
+  "false_positive_rate": 0.217,
+  "n": 60,
+  "seconds": 8.4
+ },
+ "_models": {
+  "ocr_caption": "florence-community/Florence-2-base@00921df66db728a9ceb750f5eca43e5c203a2051",
+  "image_text": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K@1a25a446712ba5ee05982a381eed697ef9b435cf",
+  "speech": "openai/whisper-base@e37978b90ca9030d5170a5c07aadb050351a65bb",
+  "ai_image": "NYUAD-ComNets/NYUAD_AI-generated_images_detector@b0a2e665f6e40164436cae6c0c95e7e4386f7684",
+  "bench_tts": "facebook/mms-tts-eng@c71de0fe7204c83f1c10820a7d696d0b450048ba",
+  "agent_llm": "Qwen/Qwen2.5-3B-Instruct@aa8e72537993ba99e69dfaafa59ed015b17504d1"
+ },
+ "_sets": {
+  "ocr": {
+   "seed": 101,
+   "n": 16
+  },
+  "labels": {
+   "photos": 30
+  },
+  "speech": {
+   "seed": 7,
+   "n": 8
+  },
+  "ai_image": {
+   "photos": 60
+  }
+ }
+}
