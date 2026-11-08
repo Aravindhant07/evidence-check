@@ -37,3 +37,6 @@ loss_labels:
   storm: ["a photo of storm damage to a roof", "a photo of a fallen tree on a house"]
 
 mask_fields: [claimant_name]
+
+check_weights:
+  unreadable: 1.3  # an unreadable receipt goes to a person instead of passing quietly

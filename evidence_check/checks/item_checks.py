@@ -140,3 +140,23 @@ class PdfStructureCheck:
                                    title=f"This PDF was produced by an editing tool ({m.group(0)}), not a billing system.",
                                    detail=f"Producer/Creator: {tool.strip()[:200]}", pointer=Pointer(evidence_id=ev.id, text=tool.strip()[:120])))
         return out
+
+
+@register
+class ReadabilityCheck:
+    """A receipt whose total could not be read leaves the payment and arithmetic checks blind. Rather than let the
+    case pass quietly, send it to a person (its weight in the domain policy is set so it reaches review on its own)."""
+
+    id = "unreadable"
+    layer = "item"
+
+    def run(self, ctx: Context) -> list[Finding]:
+        out = []
+        for ev in ctx.of_role("receipt", "invoice"):
+            read = "ocr" in ev.extraction.models or (ev.kind == "pdf" and ev.extraction.lines)
+            if read and not (ev.extraction.receipt and ev.extraction.receipt.total):
+                out.append(Finding(check=self.id, layer="item", severity=Severity.MEDIUM, confidence=1.0,
+                                   title=f"The total on {ev.name} could not be read, so payment and arithmetic were not checked.",
+                                   detail="A person should read this receipt. Common causes: blur, glare, folds, faded thermal paper.",
+                                   pointer=Pointer(evidence_id=ev.id)))
+        return out

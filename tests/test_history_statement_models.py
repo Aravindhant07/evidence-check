@@ -177,3 +177,42 @@ def test_models_are_pinned_to_full_commits():
     reg = ModelRegistry()
     for job, c in reg.cfg.items():
         assert len(c["revision"]) == 40, job
+
+
+# -- unreadable receipts and the OCR second look --------------------------------
+
+def test_unreadable_receipt_goes_to_review(tmp_path):
+    import json
+
+    b = Builder(tmp_path / "c", seed=9)
+    d = b.expense()
+    truth = json.loads((d / "truth.json").read_text())
+    for name in truth["ocr"]:
+        truth["ocr"][name] = [l for l in truth["ocr"][name] if "TOTAL" not in l[0]]  # OCR lost the totals
+    (d / "truth.json").write_text(json.dumps(truth))
+    v = run_case(d, models=OracleModels(), work_dir=tmp_path / "w")[2]
+    assert any(f.check == "unreadable" for f in v.findings) and v.level is not Level.CLEAR
+    v = run_case(d, models=None, work_dir=tmp_path / "w")[2]  # no OCR at all: nothing to report as unreadable
+    assert not any(f.check == "unreadable" for f in v.findings)
+
+
+def test_read_receipt_second_look():
+    from PIL import Image
+
+    from evidence_check.models import TextLine
+
+    calls = []
+
+    class Stub(ModelRegistry):
+        def __init__(self):
+            pass
+
+        def ocr(self, img, offset=(0, 0), **gen):
+            calls.append(gen)
+            if gen:  # the retry escapes the repetition loop
+                return [TextLine(text="SUBTOTAL 17.95", box=(0, 0, 9, 9)), TextLine(text="TOTAL 19.81", box=(0, 10, 9, 19))]
+            return [TextLine(text="- - - - - - - -", box=(0, 0, 9, 9))]
+
+    lines, how = Stub().read_receipt(Image.new("RGB", (100, 200)))
+    assert how == "retried with repetition penalty" and calls[1] == {"repetition_penalty": 1.2}
+    assert any("19.81" in l.text for l in lines)

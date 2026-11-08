@@ -118,28 +118,45 @@ class ModelRegistry:
             return self._m[job]
 
     # -- perception primitives ------------------------------------------
-    def _florence(self, img: Image.Image, task: str, max_new_tokens: int = 1024) -> Any:
+    def _florence(self, img: Image.Image, task: str, max_new_tokens: int = 1024, **gen: Any) -> Any:
         import torch
 
         model, proc = self._load("ocr_caption")
         inputs = proc(text=task, images=img, return_tensors="pt")
         with torch.inference_mode():
             ids = model.generate(input_ids=inputs["input_ids"], pixel_values=inputs["pixel_values"],
-                                 max_new_tokens=max_new_tokens, num_beams=1, do_sample=False)
+                                 max_new_tokens=max_new_tokens, num_beams=1, do_sample=False, **gen)
         text = proc.batch_decode(ids, skip_special_tokens=False)[0]
         out = proc.post_process_generation(text, task=task, image_size=img.size)
         return out.get(task, out)
 
-    def ocr(self, img: Image.Image) -> list[TextLine]:
-        res = self._florence(img, "<OCR_WITH_REGION>")
+    def ocr(self, img: Image.Image, offset: tuple[int, int] = (0, 0), **gen: Any) -> list[TextLine]:
+        res = self._florence(img, "<OCR_WITH_REGION>", **gen)
         regions, quads = [], []
         for quad, label in zip(res.get("quad_boxes", []), res.get("labels", [])):
             xs, ys = quad[0::2], quad[1::2]
             text = label.replace("</s>", "").replace("<s>", "").strip()
             if text:
-                regions.append((text, (int(min(xs)), int(min(ys)), int(max(xs)) + 1, int(max(ys)) + 1)))
+                ox, oy = offset
+                regions.append((text, (int(min(xs)) + ox, int(min(ys)) + oy, int(max(xs)) + 1 + ox, int(max(ys)) + 1 + oy)))
                 quads.append(quad)
         return merge_rows(regions, text_angle(quads))
+
+    def read_receipt(self, img: Image.Image) -> tuple[list[TextLine], str]:
+        """OCR with a second look. Florence-2 can fall into a repetition loop on dashed separator lines and run out
+        of tokens before the totals; when no total was read, retry with a repetition penalty, then on the bottom half."""
+        lines = self.ocr(img)
+        if parse_lines(lines).total:
+            return lines, "single pass"
+        retry = self.ocr(img, repetition_penalty=1.2)
+        if parse_lines(retry).total:
+            return retry, "retried with repetition penalty"
+        w, h = img.size
+        bottom = self.ocr(img.crop((0, h // 2, w, h)), offset=(0, h // 2))
+        merged = [l for l in retry if l.box and l.box[3] <= h // 2] + bottom
+        if parse_lines(merged).total:
+            return merged, "retried on the bottom half"
+        return lines, "total not found after retries"
 
     def caption(self, img: Image.Image) -> str:
         res = self._florence(img, "<MORE_DETAILED_CAPTION>", max_new_tokens=120)
@@ -199,10 +216,14 @@ class ModelRegistry:
                 if ev.kind == "image":
                     img = Image.open(ev.file).convert("RGB")
                     if ev.role in ("receipt", "invoice", "document") and self._want("ocr_caption"):
-                        ev.extraction.lines = self.ocr(img)
-                        ev.extraction.models["ocr"] = self.tag("ocr_caption")
                         if ev.role in ("receipt", "invoice"):
+                            ev.extraction.lines, how = self.read_receipt(img)
                             ev.extraction.receipt = parse_lines(ev.extraction.lines)
+                            if how != "single pass":
+                                notes.append(f"{ev.name}: OCR {how}")
+                        else:
+                            ev.extraction.lines = self.ocr(img)
+                        ev.extraction.models["ocr"] = self.tag("ocr_caption")
                     if ev.role in ("damage_photo", "product_photo") and self._want("ocr_caption"):
                         ev.extraction.caption = self.caption(img)
                         ev.extraction.models["caption"] = self.tag("ocr_caption")

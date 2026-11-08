@@ -60,6 +60,7 @@ class Builder:
         voice: "silent" (transcript in truth.json only) or "tts" (spoken statements, for the speech model)."""
         self.speaker = Speaker(voice)
         self.real_photos = list(real_photos or [])
+        self._deck: list[Path] = []  # real photos are dealt without replacement: a repeat would be a real duplicate
         self.out = Path(out)
         self.rng = random.Random(seed)
         random.seed(seed)
@@ -141,7 +142,10 @@ class Builder:
                 save_jpeg(im, d / name, quality=82, exif=exif_bytes(when, phone, gps))
             else:
                 if self.real_photos:
-                    img = Image.open(r.choice(self.real_photos)).convert("RGB")
+                    if not self._deck:
+                        self._deck = self.real_photos[:]
+                        r.shuffle(self._deck)
+                    img = Image.open(self._deck.pop()).convert("RGB")
                     if img.width < 1000:
                         img = img.resize((1024, round(1024 * img.height / img.width)), Image.LANCZOS)
                 else:
