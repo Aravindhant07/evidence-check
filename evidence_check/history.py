@@ -216,6 +216,12 @@ class HistoryIndex:
                     out.append(Match(e, "receipt", 1.0, f"same merchant, total and date ({me.receipt})"))
         return out
 
+    def snapshot(self) -> "HistoryIndex":
+        """An in-memory copy that can be written to without touching the real index (red team, what-if runs)."""
+        h = HistoryIndex()
+        h.entries = list(self.entries)
+        return h
+
     def device_claimants(self, device: str, exclude_case: str) -> set[str]:
         return {e.claimant_id for e in self.entries if e.device == device and e.case_id != exclude_case}
 

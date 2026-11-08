@@ -49,6 +49,9 @@ class Service:
         self.history = HistoryIndex(self.data / "history.jsonl")
         self.models = models
         self.webhook = webhook  # callable(case_id, verdict_dict) for integrations
+        from .agents.improve import PolicyStore
+
+        self.policies = PolicyStore(self.data, audit=self.store.audit)
         self.cases_dir = self.data / "cases"
         self.work_dir = self.data / "work"
         self._stop = threading.Event()
@@ -109,8 +112,16 @@ class Service:
             raise KeyError(case_id)
         self.store.set_status(case_id, "running")
         t0 = time.perf_counter()
-        case, evidence, v = run_case(row["case_dir"], models=self.models, history=self.history, work_dir=self.work_dir)
+        case, evidence, v = run_case(row["case_dir"], policy=self.policies.policy(row["domain"]), models=self.models,
+                                     history=self.history, work_dir=self.work_dir)
         verdict = v.model_dump(mode="json")
+        shadow = self.policies.shadow(row["domain"])
+        if shadow:  # a candidate policy runs alongside: same findings, re-scored; nobody sees it in the queue
+            from .policy import score as rescore
+
+            prop, cand = shadow
+            s, lv = rescore([f for f in v.findings if cand.enabled(f.check)], cand)
+            verdict["shadow"] = {"proposal": prop.id, "level": lv.value, "score": s, "agrees": lv == v.level}
         verdict["evidence"] = [evidence_view(e) for e in evidence]
         verdict["seconds"] = round(time.perf_counter() - t0, 2)
         verdict["case"] = case.model_dump(mode="json", exclude={"card_transactions"})
@@ -213,6 +224,25 @@ class Service:
                 self.store.audit(actor, "retention_delete", r["case_id"], {"older_than_days": days})
                 removed.append(r["case_id"])
         return removed
+
+    def labelled_rows(self) -> list[dict]:
+        """Closed cases as labelled rows for calibration and the improvement gate."""
+        out = []
+        for r in self.store.cases():
+            status = r["status"].replace(":purged", "")
+            if status in ("closed:fraud", "closed:legitimate") and r["verdict"]:
+                out.append({"domain": r["domain"], "fraud": status == "closed:fraud", "manipulation": "confirmed_fraud",
+                            "findings": r["verdict"]["findings"], "segment": r["segment"]})
+        return out
+
+    def shadow_report(self) -> dict:
+        n = agree = 0
+        for r in self.store.cases():
+            s = (r["verdict"] or {}).get("shadow")
+            if s:
+                n += 1
+                agree += s["agrees"]
+        return {"cases": n, "agree": agree}
 
     def find_similar(self, case_id: str, evidence_id: str) -> list[dict]:
         row = self.store.case(case_id)
