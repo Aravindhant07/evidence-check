@@ -22,3 +22,24 @@ def test_wilson_interval():
     assert lo == 0 and 0.01 < hi < 0.02
     lo, hi = wilson(10, 10)
     assert hi == 1.0 and 0.6 < lo < 0.75
+
+
+def test_laundering_transforms_produce_valid_images(tmp_path):
+    from PIL import Image
+
+    from evidence_check.bench.cases import Builder
+    from evidence_check.bench.robust import TRANSFORMS, launder
+
+    b = Builder(tmp_path / "c", seed=2)
+    d = b.claim()
+    for name in TRANSFORMS:
+        work = tmp_path / name
+        import shutil
+
+        shutil.copytree(d, work)
+        launder([work], name)
+        for p in work.glob("*.jpg"):
+            with Image.open(p) as im:
+                im.load()
+                if name in ("strip_metadata", "screenshot", "rephoto"):
+                    assert not im.info.get("exif")
