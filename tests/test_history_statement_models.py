@@ -225,7 +225,7 @@ def test_model_swap_gate():
 
     base = evals.load_baseline()
     assert base and evals.compare(base, base) == (True, [])
-    worse = json_copy = __import__("json").loads(__import__("json").dumps(base))
+    worse = __import__("json").loads(__import__("json").dumps(base))
     worse["ocr"]["total_accuracy"] -= 0.2           # a new OCR model that misreads totals
     worse["ai_image"]["false_positive_rate"] += 0.1  # and a noisier detector
     ok, problems = evals.compare(worse, base)
