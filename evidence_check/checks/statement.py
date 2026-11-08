@@ -82,6 +82,8 @@ def day_value(s: str) -> int:
 def dates(text: str, year_hint: int) -> list[date]:
     """Dates as people say them: 'March 3rd', 'march the third', 'january twenty ninth', 'the 3rd of March'."""
     t = text.lower()
+    # speech recognition often splits compound ordinals: "twenty eighth" -> "20th, 8th"
+    t = re.sub(r"\b([23])0(?:th)?,?\s+([1-9])(?:st|nd|rd|th)\b", lambda m: f"{m.group(1)}{m.group(2)}th", t)
     found = [(m.group(1), m.group(2)) for m in re.finditer(r"\b" + MONTH + r"\s+(?:the\s+)?" + DAY + r"\b", t)]
     found += [(m.group(2), m.group(1)) for m in re.finditer(r"\b" + DAY + r"\s+of\s+" + MONTH + r"\b", t)]
     out = []

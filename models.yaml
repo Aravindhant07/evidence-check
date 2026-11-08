@@ -16,3 +16,13 @@ ai_image:
   id: NYUAD-ComNets/NYUAD_AI-generated_images_detector
   revision: b0a2e665f6e40164436cae6c0c95e7e4386f7684         # Apache-2.0; one weak signal among many
   job: AI-generated image score
+bench_tts:
+  id: facebook/mms-tts-eng
+  revision: c71de0fe7204c83f1c10820a7d696d0b450048ba         # CC-BY-NC-4.0; generates benchmark voice statements only
+  job: speak benchmark statements (never used on real cases)
+  optional: true
+agent_llm:
+  id: Qwen/Qwen2.5-3B-Instruct
+  revision: aa8e72537993ba99e69dfaafa59ed015b17504d1         # Qwen research licence; investigator agent, read-only tools
+  job: investigator agent (writes cited briefs; never decides)
+  optional: true

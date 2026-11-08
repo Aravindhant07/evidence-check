@@ -103,6 +103,8 @@ def test_amounts_in_digits_and_words():
 def test_dates_and_loss_types():
     assert dates("it happened on March the third", 2026) == [date(2026, 3, 3)]
     assert dates("on september 14th", 2026) == [date(2026, 9, 14)]
+    assert dates("on September 20th, 8th another car hit my car", 2026) == [date(2026, 9, 28)]  # Whisper's split
+    assert dates("on may 30th, 1st", 2026) == [date(2026, 5, 31)]
     assert loss_types("a pipe burst and the floor was soaked") == {"water_damage"}
     assert "theft" in loss_types("someone broke in and stole the laptop")
 

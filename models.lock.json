@@ -1,0 +1,87 @@
+{
+ "ocr_caption": {
+  "id": "florence-community/Florence-2-base",
+  "revision": "00921df66db728a9ceb750f5eca43e5c203a2051",
+  "files": {
+   "added_tokens.json": "1d75deda84dfa81fb6c09301f3fed00f9695059568bbb1403a6bf299cd84fc37",
+   "config.json": "2a4dfe9885d183da121f239ada734bd700ee6908b650a7a25ab32eb104fe1d7a",
+   "generation_config.json": "0251459c49cc358ac033b5d4b8569e61ac22bde5d76be404b97a44cfb33fb12e",
+   "merges.txt": "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+   "model.safetensors": "62f3e696da74f8869a68ddb529a9b3e14eb25b21c592cb3dea6179bf944df6a0",
+   "preprocessor_config.json": "1396ec5a0a7adfe1c04fb777b09e8ba753be6dbb5868212ab3c3ef39d91fe031",
+   "processor_config.json": "cd0e3bf41a39b1276503fbd273bc03b9afc70d7a15ea681a92a1b4b77f858ee6",
+   "special_tokens_map.json": "72ff172dc769bc1551b1b4211628ce3271643bc60379e4da45d85a9be9332c39",
+   "tokenizer.json": "3ad7001f773409abe6bba33eac92662611a73d72f459bda2f00d2a221dd31ce4",
+   "tokenizer_config.json": "cb5f80bd9afa767bb1bb798ee5f0a79eae45239b8e72506166b4218175a16723",
+   "vocab.json": "ed19656ea1707df69134c4af35c8ceda2cc9860bf2c3495026153a133670ab5e"
+  }
+ },
+ "image_text": {
+  "id": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",
+  "revision": "1a25a446712ba5ee05982a381eed697ef9b435cf",
+  "files": {
+   "config.json": "1284cbff35169abb23a1c5525a8b0f543c7bd191d4b9aed63880c1571bc4191c",
+   "merges.txt": "f1cd414c2d113a28b296afc0fd66ae854c0e0c34d5de373a2f5b7f62e0c02344",
+   "model.safetensors": "74813fbcdc750f235c9784c367ca1394d2a5c25eb0aac92761752ac239db7cff",
+   "open_clip_config.json": "4302a891b495ad0966d1e7eeff102b5f34a3f1e647e57a9198933f862d5f8ba7",
+   "open_clip_model.safetensors": "ac4f8c4b88af6d963118cbf40ad93176d092abbedfcb752601ae1866352656e6",
+   "preprocessor_config.json": "910e70b3956ac9879ebc90b22fb3bc8a75b6a0677814500101a4c072bd7857bd",
+   "special_tokens_map.json": "f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf",
+   "tokenizer.json": "b556ac8c99757ffb677208af34bc8c6721572114111a6e0aaf5fa69ff0b8d842",
+   "tokenizer_config.json": "e19f34ef773563fb695f96cfcae1e4c7b112ab6ad532f6962061df5242d924f0",
+   "vocab.json": "5047b556ce86ccaf6aa22b3ffccfc52d391ea4accdab9c2f2407da5b742d4363"
+  }
+ },
+ "speech": {
+  "id": "openai/whisper-base",
+  "revision": "e37978b90ca9030d5170a5c07aadb050351a65bb",
+  "files": {
+   "added_tokens.json": "9715fd2243b6f06a5858b5e32950d2853f73dd5bc201aafcf76f5082a2d8acd1",
+   "config.json": "a153c53883a6799b6f056b4a8d1a515c9926d03994682ba88a7616618d7da0c1",
+   "generation_config.json": "444b3f636d2fff89dd9ecf549e2a085b61f7ff0fa0246d4628bac6a3b8cc9ba4",
+   "merges.txt": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+   "model.safetensors": "07cadb9f25677c8d50df603e66a98fbd842cce45047139baeb16e6219a1e807b",
+   "normalizer.json": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+   "preprocessor_config.json": "9b5cd03a36fbb8a627c64d98a5b5b126ead95a77720723944487311f0110b666",
+   "special_tokens_map.json": "e67ae3a0aaa99abcd9f187138e12db1f65c16a14761c50ef10eef2c174a7a691",
+   "tokenizer.json": "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566",
+   "tokenizer_config.json": "2a4c4281cf9f51ac6ccc406fdc711a087afe6530f671fa7b80953edc498275ce",
+   "vocab.json": "8f680bba319e01a653d2e8a5dbc17a9157179e0576e6ce74ce0c06356c6e24f9"
+  }
+ },
+ "ai_image": {
+  "id": "NYUAD-ComNets/NYUAD_AI-generated_images_detector",
+  "revision": "b0a2e665f6e40164436cae6c0c95e7e4386f7684",
+  "files": {
+   "config.json": "0a6b8fc9f9770c8d20b00d8dd71adc691f0cb6af44a7482f7945b780c33af6e9",
+   "model.safetensors": "b0eb0ba578897f59d009b4eaa7a308eb5ca56a6c27e7d51a32d4eafcbe4a223a",
+   "preprocessor_config.json": "5e6895a8a80efa00a98656b6c24d202d7582614ceea87aa122f861120dc833c0"
+  }
+ },
+ "bench_tts": {
+  "id": "facebook/mms-tts-eng",
+  "revision": "c71de0fe7204c83f1c10820a7d696d0b450048ba",
+  "files": {
+   "config.json": "c2a93c1dfbf33b640163f2ade16345b9a5194fa54de9a04a04272b76a97fe171",
+   "model.safetensors": "69cf8b651c1493f1801dfd2311c298d694a38357bc9a1e41f410491ea6f0e1be",
+   "special_tokens_map.json": "87c02ba90dba0e0765358bd3aa2265714b2405429b069a89af51e292db9b8c3d",
+   "tokenizer_config.json": "77c74b93b1d36f29248926dbd7714bda59990159cd14cd7ba45fd0115bff905b",
+   "vocab.json": "304f7e71c40d601f9b89d81904609512eebe96b2a941f0a251fc0c9f397bcc45"
+  }
+ },
+ "agent_llm": {
+  "id": "Qwen/Qwen2.5-3B-Instruct",
+  "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+  "files": {
+   "config.json": "eed00b17e22553979d090fa492e587e92885e328914c8e0b0b78f0a0d3576b3b",
+   "generation_config.json": "ea35dfb6fc5051b01114f9b995820d55dab01ed33ee490f6378b442af82c09f9",
+   "merges.txt": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+   "model-00001-of-00002.safetensors": "67347b23fb4165b652eb6611f5e1f2a06dfcddba8e909df1b2b0b1857bee06c2",
+   "model-00002-of-00002.safetensors": "a40d941d0e7e0b966ad8b62bb6d6b7c88cce1299197b599d9d0a4ce59aabfc1d",
+   "model.safetensors.index.json": "bc8aaa0c87d4335177e01c765f1de0db81661c67c1a72fbfb0d521b09f5ddc56",
+   "tokenizer.json": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+   "tokenizer_config.json": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583",
+   "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+  }
+ }
+}
