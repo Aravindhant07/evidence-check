@@ -91,6 +91,16 @@ def text_similarity(a: str, b: str) -> float:
     return len(ta & tb) / len(ta | tb) if ta and tb else 0.0
 
 
+def same_document(a: str, b: str) -> bool:
+    """Two receipts from the same merchant share most words (name, address, template); a reused receipt also
+    repeats the same numbers (amounts, date, time, card digits). Require both."""
+    if text_similarity(a, b) < 0.85:
+        return False
+    na = " ".join(t for t in a.split() if any(c.isdigit() for c in t))
+    nb = " ".join(t for t in b.split() if any(c.isdigit() for c in t))
+    return text_similarity(na, nb) >= 0.8
+
+
 @dataclass
 class Entry:
     evidence_id: str
@@ -165,8 +175,8 @@ class HistoryIndex:
                 if not e.hashes:
                     continue
                 # Documents all look alike to an image hash (white paper, similar layout): for them an image
-                # match only counts when the printed text matches too.
-                if doc and text_similarity(me.text, e.text) < 0.85:
+                # match only counts when the printed text, numbers included, matches too.
+                if doc and not same_document(me.text, e.text):
                     continue
                 d = min(hamming(me.hashes["phash"], e.hashes["phash"]),
                         hamming(me.hashes["phash_centre"], e.hashes.get("phash_centre", e.hashes["phash"])),
@@ -185,7 +195,7 @@ class HistoryIndex:
             sims = emb @ np.array(me.embedding, dtype=np.float32)
             for j, s in enumerate(sims):
                 e = self.entries[self._emb_ids[j]]
-                if doc and text_similarity(me.text, e.text) < 0.85:
+                if doc and not same_document(me.text, e.text):
                     continue
                 if e.case_id != case.case_id and s >= clip_min and not any(m.entry is e for m in out):
                     out.append(Match(e, "image", float(s), f"embedding similarity {s:.3f}"))

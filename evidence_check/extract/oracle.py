@@ -1,4 +1,4 @@
-"""Oracle perception: feed ground-truth OCR from benchmark truth.json instead of running a vision model.
+"""Oracle perception: feed ground-truth OCR and transcripts from benchmark truth.json instead of running a vision model.
 
 Used to evaluate the checks separately from the models ("if perception were perfect, what would we catch?").
 """
@@ -22,7 +22,11 @@ class OracleModels:
             if not truth.exists():
                 notes.append(f"oracle: no truth.json for {ev.name}")
                 continue
-            ocr = json.loads(truth.read_text()).get("ocr", {}).get(ev.name)
+            gt = json.loads(truth.read_text())
+            if ev.kind == "audio" and ev.name in gt.get("transcripts", {}):
+                ev.extraction.transcript = gt["transcripts"][ev.name]
+                ev.extraction.models["speech"] = "oracle"
+            ocr = gt.get("ocr", {}).get(ev.name)
             if ocr:
                 ev.extraction.lines = [TextLine(text=t, box=tuple(b) if b else None) for t, b in ocr]
                 if ev.role in ("receipt", "invoice"):

@@ -1,7 +1,7 @@
 """Build benchmark cases (claims and expenses) with planted manipulations and ground truth.
 
 Each case folder holds case.json, the evidence files, and truth.json:
-  {"fraud": bool, "manipulations": [...], "ocr": {file: [[text, [x0,y0,x1,y1]], ...]}}
+  {"fraud": bool, "manipulations": [...], "ocr": {file: [[text, [x0,y0,x1,y1]], ...]}, "transcripts": {file: text}}
 The OCR ground truth lets checks be evaluated separately from the vision model ("oracle perception").
 """
 
@@ -17,10 +17,11 @@ from PIL import Image
 
 from .synth import (CITIES, ITEMS, MERCHANTS, PHONES, ReceiptSpec, edit_region, exif_bytes, photograph, render_receipt,
                     save_jpeg, scene_photo)
+from .voice import Speaker, statement_text
 
 CLAIM_MANIPULATIONS = ["edited_total", "generator_receipt", "flat_receipt_no_card", "wrong_tax", "no_card_txn",
                        "photo_before_policy", "photo_before_incident", "gps_mismatch", "amount_inflated", "copy_move_photo",
-                       "edited_photo_software", "reused_photo", "wrong_loss_type"]
+                       "edited_photo_software", "reused_photo", "wrong_loss_type", "statement_contradiction"]
 EXPENSE_MANIPULATIONS = ["edited_total", "generator_receipt", "flat_receipt_no_card", "wrong_tax", "no_card_txn",
                          "receipt_date_mismatch", "amount_inflated", "reused_receipt"]
 
@@ -53,9 +54,11 @@ def _receipt_lines(spec: ReceiptSpec, img_boxes: dict, flat: Image.Image) -> lis
 
 
 class Builder:
-    def __init__(self, out: Path, seed: int = 11, real_photos: list[Path] | None = None):
+    def __init__(self, out: Path, seed: int = 11, real_photos: list[Path] | None = None, voice: str = "silent"):
         """real_photos: real damage photos (e.g. bench.photos.fetch_car_photos()). When given, every claim is a
-        vehicle claim illustrated with real photos, which is what content checks (CLIP labels) need."""
+        vehicle claim illustrated with real photos, which is what content checks (CLIP labels) need.
+        voice: "silent" (transcript in truth.json only) or "tts" (spoken statements, for the speech model)."""
+        self.speaker = Speaker(voice)
         self.real_photos = list(real_photos or [])
         self.out = Path(out)
         self.rng = random.Random(seed)
@@ -107,7 +110,7 @@ class Builder:
         jur = r.choice(list(CITIES))
         city, lat, lon, _ = CITIES[jur]
         loss = "vehicle_collision" if self.real_photos else r.choice(["water_damage", "fire", "theft", "vehicle_collision"])
-        claimed_loss = r.choice(["water_damage", "fire"]) if manipulation == "wrong_loss_type" else loss
+        claimed_loss = r.choice([x for x in ("water_damage", "fire") if x != loss]) if manipulation == "wrong_loss_type" else loss
         pstart = date(2025, r.randint(1, 12), r.randint(1, 28))
         incident = pstart + timedelta(days=r.randint(60, 500))
         filed = incident + timedelta(days=r.randint(1, 14))
@@ -179,13 +182,22 @@ class Builder:
         claimed = round(sum(totals), 2)
         if manipulation == "amount_inflated":
             claimed = round(claimed * r.choice([1.5, 2.0, 3.0]), 2)
+        # voice statement: what the claimant says happened (the true loss, date and cost)
+        said_day, said_amount = incident, sum(totals)
+        if manipulation == "statement_contradiction":
+            said_day = incident - timedelta(days=r.randint(9, 25))
+            said_amount = max(claimed * 2.5, claimed + 120) if claimed < 150 else claimed * 0.3
+        text = statement_text(loss, said_day, said_amount)
+        self.speaker.write(text, d / "statement.wav", seed=self.n)
+        evidence.append({"file": "statement.wav", "role": "statement"})
         case = {"case_id": cid, "domain": "insurance_claims", "claimant_id": claimant, "claimant_name": f"Customer {claimant}",
                 "segment": {"region": jur, "channel": r.choice(["app", "agent", "web"])},
                 "claimed_amount": claimed, "loss_type": claimed_loss, "description": f"{claimed_loss.replace('_', ' ')} at insured property",
                 "incident_date": str(incident), "filed_date": str(filed), "policy": {"start": str(pstart), "end": str(pstart + timedelta(days=730))},
                 "location": {"lat": lat, "lon": lon, "address": city}, "jurisdiction": jur, "card_transactions": txns, "evidence": evidence}
         (d / "case.json").write_text(json.dumps(case, indent=1))
-        (d / "truth.json").write_text(json.dumps({"fraud": manipulation is not None, "manipulations": [manipulation] if manipulation else [], "ocr": ocr}, indent=1))
+        (d / "truth.json").write_text(json.dumps({"fraud": manipulation is not None, "manipulations": [manipulation] if manipulation else [], "ocr": ocr,
+                                              "transcripts": {"statement.wav": text}}, indent=1))
         return d
 
     def expense(self, manipulation: str | None = None) -> Path:
@@ -251,9 +263,10 @@ class Builder:
         return d
 
 
-def build_suite(out: str | Path, clean_per_domain: int = 12, seed: int = 11, real_photos: list[Path] | None = None) -> list[Path]:
+def build_suite(out: str | Path, clean_per_domain: int = 12, seed: int = 11, real_photos: list[Path] | None = None,
+                voice: str = "silent") -> list[Path]:
     """Clean cases first (they seed the history pools), then one case per manipulation, per domain."""
-    b = Builder(Path(out), seed, real_photos)
+    b = Builder(Path(out), seed, real_photos, voice)
     dirs = [b.claim() for _ in range(clean_per_domain)] + [b.expense() for _ in range(clean_per_domain)]
     dirs += [b.claim(m) for m in CLAIM_MANIPULATIONS] + [b.expense(m) for m in EXPENSE_MANIPULATIONS]
     return dirs

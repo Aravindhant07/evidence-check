@@ -102,10 +102,11 @@ class ErrorLevelCheck:
             regions.sort(key=lambda r: -r[4])
             x0, y0, x1, y1, strength = regions[0]
             heat = save_heatmap(rgb, rel, ctx.work_dir / f"ela_{ev.id}.png")
-            sev = Severity.HIGH if strength >= 2 * ctx.policy.tolerances.ela_ratio else Severity.MEDIUM
+            # Supporting signal only (LOW). On the benchmark (460 cases) ELA fired on 13 images and none was a planted
+            # edit: phone JPEGs vary too much. It adds weight next to other findings and gives reviewers a heatmap.
             out.append(Finding(
-                check=self.id, layer="item", severity=sev, confidence=min(0.9, 0.4 + 0.08 * strength),
-                title="Part of this image was saved differently from the rest, a common sign of an edit.",
+                check=self.id, layer="item", severity=Severity.LOW, confidence=min(0.9, 0.4 + 0.08 * strength),
+                title="Part of this image may have been saved differently from the rest (supporting signal only).",
                 detail=f"Error-level analysis: {len(regions)} region(s); strongest {strength:.1f}x the level of similar content.",
                 pointer=Pointer(evidence_id=ev.id, box=_box_to_original((x0, y0, x1, y1), scale), heatmap=heat),
                 data={"regions": [[*_box_to_original(r[:4], scale), round(r[4], 2)] for r in regions[:5]]}))

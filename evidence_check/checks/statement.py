@@ -65,14 +65,30 @@ def amounts(text: str) -> list[float]:
     return out
 
 
+ORD_WORD = r"(?:(?:twenty|thirty)[\s-]+)?(?:" + "|".join(ORDINALS) + r")"
+DAY = r"(\d{1,2}(?:st|nd|rd|th)?|" + ORD_WORD + r")"
+MONTH = r"(" + "|".join(MONTHS) + r")"
+
+
+def day_value(s: str) -> int:
+    """'14', '14th', 'fourteenth', 'twenty first', 'thirty-first' -> day of month."""
+    m = re.match(r"\d+", s)
+    if m:
+        return int(m.group(0))
+    parts = re.split(r"[\s-]+", s)
+    return {"twenty": 20, "thirty": 30}.get(parts[0], 0) + ORDINALS[parts[-1]] if len(parts) > 1 else ORDINALS[s]
+
+
 def dates(text: str, year_hint: int) -> list[date]:
+    """Dates as people say them: 'March 3rd', 'march the third', 'january twenty ninth', 'the 3rd of March'."""
     t = text.lower()
+    found = [(m.group(1), m.group(2)) for m in re.finditer(r"\b" + MONTH + r"\s+(?:the\s+)?" + DAY + r"\b", t)]
+    found += [(m.group(2), m.group(1)) for m in re.finditer(r"\b" + DAY + r"\s+of\s+" + MONTH + r"\b", t)]
     out = []
-    for m in re.finditer(r"\b(" + "|".join(MONTHS) + r")\s+(?:the\s+)?(\d{1,2}|" + "|".join(ORDINALS) + r")(?:st|nd|rd|th)?\b", t):
-        day = int(m.group(2)) if m.group(2).isdigit() else ORDINALS[m.group(2)]
+    for month, day in found:
         try:
-            out.append(date(year_hint, MONTHS[m.group(1)], day))
-        except ValueError:
+            out.append(date(year_hint, MONTHS[month], day_value(day)))
+        except (ValueError, KeyError):
             pass
     return out
 
