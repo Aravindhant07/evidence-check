@@ -38,7 +38,7 @@ evcheck = "evidence_check.cli:app"
 include = ["evidence_check*"]
 
 [tool.setuptools.package-data]
-evidence_check = ["web/templates/*.html"]
+evidence_check = ["web/templates/*.html", "domains/*.yaml", "models.yaml", "models.lock.json", "evals_baseline.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

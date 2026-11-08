@@ -16,7 +16,7 @@ from PIL import Image
 from ..models import Case, Evidence, TextLine
 from .receipt import parse_lines
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]  # the package: models.yaml ships inside it
 SCREEN_PROMPT = "a photo of a computer or phone screen"
 GENERIC_PROMPTS = [SCREEN_PROMPT, "a photo of a store receipt", "a photo of a document", "a photo of a person", "a photo of an undamaged room"]
 

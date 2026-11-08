@@ -47,7 +47,7 @@ Revoke by deleting the line from keys.json and restarting.
 
 ## Changing models
 
-Models are pinned to full commits in `models.yaml` and loaded as safetensors without remote code. To change one:
+Models are pinned to full commits in `evidence_check/models.yaml` and loaded as safetensors without remote code. To change one:
 update the pin, run `evcheck models download` and `evcheck models verify`, rerun the benchmark and the golden sets,
 and compare with the previous run before deploying. Never point a model at a branch name.
 

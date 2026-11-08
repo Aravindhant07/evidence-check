@@ -1,7 +1,7 @@
 """Per-model golden sets and the model swap gate.
 
 Each perception model is measured on a fixed, versioned set (generator seeds and a pinned dataset revision), and
-the numbers are compared with evals/baseline.json. Changing a model pin in models.yaml must not make any metric
+the numbers are compared with evidence_check/evals_baseline.json. Changing a model pin in models.yaml must not make any metric
 worse than its tolerance; CI or a person runs `evcheck eval models` before the change ships.
 
     ocr       field accuracy (total, subtotal, tax, date, merchant) on photographed receipts with known text

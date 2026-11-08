@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from .models import Finding, Level, Severity
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent  # domains/ ships inside the package
 
 
 class Thresholds(BaseModel):

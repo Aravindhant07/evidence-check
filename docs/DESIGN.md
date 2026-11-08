@@ -124,7 +124,7 @@ A generator builds realistic cases, then plants manipulations with known ground 
 
 - `evcheck eval models`: OCR field accuracy, label accuracy, word error rate, detector ROC, on versioned sets under `evals/`.
 - `evcheck eval system`: the benchmark and the layer ablation.
-- **The gate:** `models.yaml` changes fail CI if any metric drops more than its tolerance.
+- **The gate:** `evidence_check/models.yaml` changes fail CI if any metric drops more than its tolerance.
 
 ## Threat model (summary; full version in `docs/THREAT_MODEL.md`)
 

@@ -1,6 +1,6 @@
 # Model cards
 
-Every model runs locally, is pinned to a full commit in `models.yaml`, loads safetensors only and never runs
+Every model runs locally, is pinned to a full commit in `evidence_check/models.yaml`, loads safetensors only and never runs
 remote code. Models only perceive (read text, describe, label, transcribe). Code makes every decision.
 
 Numbers below were measured on this repository's data on CPU. They are rerun by the evaluation suite whenever a

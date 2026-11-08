@@ -13,6 +13,10 @@ import typer
 app = typer.Typer(add_completion=False, no_args_is_help=True, help="Check the evidence behind claims and expense reports.")
 keys_app = typer.Typer(no_args_is_help=True, help="Manage API keys.")
 app.add_typer(keys_app, name="keys")
+models_app = typer.Typer(no_args_is_help=True, help="Pinned models: download for offline use, verify hashes.")
+app.add_typer(models_app, name="models")
+eval_app = typer.Typer(no_args_is_help=True, help="Evaluation: model golden sets and the swap gate.")
+app.add_typer(eval_app, name="eval")
 improve_app = typer.Typer(no_args_is_help=True, help="Policy improvement: proposals, the gate, approval, shadow, rollback.")
 app.add_typer(improve_app, name="improve")
 
@@ -257,6 +261,69 @@ def _rows(results: Optional[Path], svc) -> list[dict]:
         typer.echo("No labelled cases: pass --results (a benchmark results.json) or close cases in the UI.", err=True)
         raise typer.Exit(2)
     return rows
+
+
+PKG = Path(__file__).resolve().parent
+
+
+@models_app.command("download")
+def models_download(optional: bool = typer.Option(False, "--all", help="Also the benchmark TTS and the agent LLM")):
+    """Fetch the pinned models (safetensors and configs only; never pickles or code) into the Hugging Face cache."""
+    from .extract.model_files import download
+
+    for job, path in download(PKG / "models.yaml", optional).items():
+        typer.echo(f"{job}: {path}")
+
+
+@models_app.command("verify")
+def models_verify():
+    """Check every downloaded model file against the SHA-256 recorded in models.lock.json."""
+    from .extract.model_files import verify
+
+    problems = verify(PKG / "models.yaml", PKG / "models.lock.json")
+    for p in problems:
+        typer.echo(p)
+    typer.echo("all model files match the lock" if not problems else f"{len(problems)} problem(s)")
+    raise typer.Exit(1 if problems else 0)
+
+
+@models_app.command("lock")
+def models_lock():
+    """Record the SHA-256 of every downloaded model file (after deliberately changing a pin)."""
+    from .extract.model_files import lock
+
+    out = lock(PKG / "models.yaml", PKG / "models.lock.json")
+    typer.echo(f"locked {sum(len(v['files']) for v in out.values())} files across {len(out)} models")
+
+
+@eval_app.command("models")
+def eval_models(only: Optional[str] = typer.Option(None, help="Comma-separated: ocr,labels,speech,ai_image"),
+                update_baseline: bool = typer.Option(False, help="Accept these numbers as the new baseline")):
+    """Measure each model on its golden set and compare with the baseline (the model swap gate)."""
+    from . import evals
+    from .extract.models import ModelRegistry
+
+    cur = evals.run_all(ModelRegistry(), set(only.split(",")) if only else None)
+    typer.echo(json.dumps({k: v for k, v in cur.items() if not k.startswith("_")}, indent=1))
+    base = evals.load_baseline()
+    if update_baseline or base is None:
+        merged = {**(base or {}), **cur}
+        evals.BASELINE.write_text(json.dumps(merged, indent=1) + "\n")
+        typer.echo(f"baseline written to {evals.BASELINE}")
+        return
+    ok, problems = evals.compare(cur, base)
+    for p in problems:
+        typer.echo(f"WORSE: {p}")
+    typer.echo("swap gate passed" if ok else "swap gate FAILED")
+    raise typer.Exit(0 if ok else 1)
+
+
+@eval_app.command("system")
+def eval_system(ctx: typer.Context):
+    """The benchmark and layer ablation (same as `evcheck bench`)."""
+    from .bench.run import main
+
+    main(ctx.args)
 
 
 @improve_app.command("propose")
