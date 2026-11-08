@@ -122,6 +122,11 @@ class Match:
     kind: str  # image | receipt | device
     score: float  # similarity (1.0 = identical) or count
     detail: str
+    variant: bool = False  # same document but a different printed date: a re-dated copy, or a coincidence
+
+
+def _date_of(fingerprint: str | None) -> str:
+    return fingerprint.rsplit("|", 1)[-1] if fingerprint else ""
 
 
 class HistoryIndex:
@@ -184,7 +189,7 @@ class HistoryIndex:
                         hamming(me.hashes["phash_centre"], e.hashes["phash"]))
                 if d <= phash_max:
                     out.append(Match(e, "image", 1 - d / 64, f"perceptual hash distance {d}/64"))
-                elif d <= 2.5 * phash_max and not doc and e.path:
+                elif d <= 2.5 * phash_max and not doc and e.path and Path(e.path).exists():
                     # loose candidate (cropped/resized copy?): confirm geometrically before reporting
                     inliers = same_scene(ev.file, e.path)
                     if inliers >= 25:
@@ -199,6 +204,12 @@ class HistoryIndex:
                     continue
                 if e.case_id != case.case_id and s >= clip_min and not any(m.entry is e for m in out):
                     out.append(Match(e, "image", float(s), f"embedding similarity {s:.3f}"))
+        if doc:  # same printed text but a different date: report as a variant, not as the same receipt
+            for m in out:
+                a, b = _date_of(me.receipt), _date_of(m.entry.receipt)
+                if a and b and a != b:
+                    m.variant = True
+                    m.detail += f"; but the printed date differs ({a} here, {b} there)"
         if me.receipt:
             for _, e in others:
                 if e.receipt == me.receipt:

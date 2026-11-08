@@ -87,7 +87,7 @@ def run_suite(case_dirs: list[Path], models, work_dir: Path) -> list[dict]:
         t0 = time.perf_counter()
         case, _, v = run_case(d, models=models, history=hist, work_dir=work_dir)
         rows.append({"case": case.case_id, "domain": case.domain, "fraud": truth["fraud"],
-                     "manipulation": (truth["manipulations"] or [None])[0], "seconds": round(time.perf_counter() - t0, 2),
+                     "manipulation": (truth["manipulations"] or [None])[0], "segment": case.segment, "seconds": round(time.perf_counter() - t0, 2),
                      "findings": [f.model_dump(mode="json") for f in v.findings], "skipped": v.skipped})
     return rows
 

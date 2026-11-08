@@ -116,7 +116,7 @@ class Service:
         verdict["case"] = case.model_dump(mode="json", exclude={"card_transactions"})
         self.store.save_verdict(case_id, verdict)
         fired = {f["check"] for f in verdict["findings"] if f["severity"] != "info"}
-        self.store.record_flags(date.today().isoformat(), fired, set())
+        self.store.record_flags(date.today().isoformat(), fired)
         self.store.audit(actor, "check", case_id, {"level": verdict["level"], "score": verdict["score"], "policy": verdict["policy"]})
         if self.webhook:
             try:
@@ -174,6 +174,45 @@ class Service:
             raise ValueError("outcome must be legitimate, fraud or needs_info")
         self.store.set_status(case_id, f"closed:{outcome}")
         self.store.audit(actor, "close", case_id, {"outcome": outcome, "note": note[:500]})
+
+    # -- operations ----------------------------------------------------------------
+    def drift(self, baseline_days: int = 30, min_days: int = 7, sigmas: float = 3.0) -> list[dict]:
+        """Checks whose flag rate today is outside the control band of the previous days (mean ± 3σ).
+        A sudden change usually means the input changed (a new phone model, a scanner, a partner's export)
+        or a fraud pattern appeared; either way someone should look."""
+        import statistics
+
+        today = date.today().isoformat()
+        totals = {r["day"]: r["cases"] for r in self.store.flag_series("__cases__")}
+        days = sorted(d for d in totals if d < today)[-baseline_days:]
+        if len(days) < min_days or today not in totals:
+            return []
+        alerts = []
+        for chk, series in self.store.daily_rates().items():
+            base = [series.get(d, 0.0) for d in days]
+            mu, sd = statistics.fmean(base), statistics.pstdev(base)
+            now = series.get(today, 0.0)
+            band = sigmas * max(sd, 0.01)
+            if abs(now - mu) > band:
+                alerts.append({"check": chk, "today": round(now, 3), "baseline": round(mu, 3), "band": round(band, 3),
+                               "direction": "up" if now > mu else "down"})
+        return alerts
+
+    def retention(self, days: int, actor: str = "retention") -> list[str]:
+        """Delete the evidence files of cases closed more than `days` ago. The verdict, decisions, audit log and
+        history fingerprints (hashes, not images) are kept, so reuse can still be detected later."""
+        cutoff = time.time() - days * 86400
+        removed = []
+        for r in self.store.cases():
+            if r["status"].startswith("closed:") and (r["checked"] or 0) < cutoff and Path(r["case_dir"]).exists():
+                for p in Path(r["case_dir"]).iterdir():
+                    if p.name != "case.json":
+                        p.unlink()
+                shutil.rmtree(self.work_dir / r["case_id"], ignore_errors=True)
+                self.store.set_status(r["case_id"], r["status"] + ":purged")
+                self.store.audit(actor, "retention_delete", r["case_id"], {"older_than_days": days})
+                removed.append(r["case_id"])
+        return removed
 
     def find_similar(self, case_id: str, evidence_id: str) -> list[dict]:
         row = self.store.case(case_id)

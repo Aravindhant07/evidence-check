@@ -187,10 +187,19 @@ class Store:
         return {r["status"]: r["n"] for r in self.db.execute("SELECT status, COUNT(*) n FROM jobs GROUP BY status")}
 
     # -- monitoring --------------------------------------------------------------
-    def record_flags(self, day: str, fired: set[str], all_checks: set[str]) -> None:
-        for chk in all_checks | fired:
-            self.db.execute("INSERT INTO daily_flags(day, check_id, cases, flagged) VALUES (?,?,1,?) ON CONFLICT(day, check_id) "
-                            "DO UPDATE SET cases=cases+1, flagged=flagged+excluded.flagged", (day, chk, int(chk in fired)))
+    def record_flags(self, day: str, fired: set[str]) -> None:
+        """One row per check per day; the "__cases__" row counts every checked case (the denominator)."""
+        for chk in fired | {"__cases__"}:
+            self.db.execute("INSERT INTO daily_flags(day, check_id, cases, flagged) VALUES (?,?,1,1) ON CONFLICT(day, check_id) "
+                            "DO UPDATE SET cases=cases+1, flagged=flagged+1", (day, chk))
+
+    def daily_rates(self) -> dict[str, dict[str, float]]:
+        """{check: {day: share of that day's cases where the check fired}}"""
+        totals = {r["day"]: r["cases"] for r in self.db.execute("SELECT day, cases FROM daily_flags WHERE check_id='__cases__'")}
+        out: dict[str, dict[str, float]] = {}
+        for r in self.db.execute("SELECT day, check_id, flagged FROM daily_flags WHERE check_id != '__cases__'"):
+            out.setdefault(r["check_id"], {})[r["day"]] = r["flagged"] / max(1, totals.get(r["day"], 1))
+        return out
 
     def flag_series(self, check_id: str | None = None) -> list[dict]:
         q, args = "SELECT * FROM daily_flags", []

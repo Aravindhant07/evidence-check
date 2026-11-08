@@ -31,10 +31,20 @@ def make_models(kind: str, truth_root: Path | None = None):
     raise typer.BadParameter(f"unknown models {kind!r}")
 
 
-def service(data: Path, models: str, truth_root: Path | None = None):
+def service(data: Path, models: str, truth_root: Path | None = None, webhook_url: str | None = None):
+    import os
+
     from .service import Service
 
-    return Service(data, make_models(models, truth_root))
+    hook = None
+    if webhook_url:
+        from .integrations import make_webhook
+
+        secret = os.environ.get("EVCHECK_WEBHOOK_SECRET")
+        if not secret:
+            raise typer.BadParameter("set EVCHECK_WEBHOOK_SECRET to sign webhook deliveries")
+        hook = make_webhook(webhook_url, secret)
+    return Service(data, make_models(models, truth_root), webhook=hook)
 
 
 @app.command()
@@ -78,9 +88,10 @@ def submit(case_dir: Path = typer.Argument(..., exists=True, file_okay=False),
 
 
 @app.command()
-def worker(data: Path = typer.Option(Path("data")), models: str = typer.Option("real", help=MODELS_HELP)):
+def worker(data: Path = typer.Option(Path("data")), models: str = typer.Option("real", help=MODELS_HELP),
+           webhook_url: Optional[str] = typer.Option(None, help="POST signed verdicts here (secret: EVCHECK_WEBHOOK_SECRET)")):
     """Process queued cases until stopped (run several for more throughput; they share the queue safely)."""
-    svc = service(data, models)
+    svc = service(data, models, webhook_url=webhook_url)
     typer.echo(f"worker started on {data} (models: {models}); Ctrl+C to stop", err=True)
     try:
         svc.run_worker()
@@ -91,7 +102,8 @@ def worker(data: Path = typer.Option(Path("data")), models: str = typer.Option("
 @app.command()
 def serve(data: Path = typer.Option(Path("data")), host: str = "127.0.0.1", port: int = 8000,
           models: str = typer.Option("none", help=MODELS_HELP), workers: int = typer.Option(1, help="In-process worker threads (0: none)"),
-          truth_root: Optional[Path] = typer.Option(None, hidden=True)):
+          truth_root: Optional[Path] = typer.Option(None, hidden=True),
+          webhook_url: Optional[str] = typer.Option(None, help="POST signed verdicts here (secret: EVCHECK_WEBHOOK_SECRET)")):
     """Run the reviewer UI and REST API (with in-process workers)."""
     import uvicorn
 
@@ -100,7 +112,7 @@ def serve(data: Path = typer.Option(Path("data")), host: str = "127.0.0.1", port
     if not load_keys(data) and host not in ("127.0.0.1", "localhost", "::1"):
         typer.echo("Refusing to listen on a network address without API keys. Add one with `evcheck keys add`.", err=True)
         raise typer.Exit(2)
-    svc = service(data, models, truth_root)
+    svc = service(data, models, truth_root, webhook_url)
     for _ in range(workers):
         svc.start_worker_thread()
     typer.echo(f"evidence-check on http://{host}:{port}  (API docs: /api/docs)", err=True)
@@ -150,7 +162,47 @@ def demo(data: Path = typer.Option(Path("demo-data")), port: int = 8000,
             webbrowser.open(url)
         except Exception:
             pass
-        serve(data=data, host="127.0.0.1", port=port, models=models, workers=1, truth_root=src)
+        serve(data=data, host="127.0.0.1", port=port, models=models, workers=1, truth_root=src, webhook_url=None)
+
+
+@app.command()
+def calibrate(results: Optional[Path] = typer.Option(None, help="Benchmark results.json (default: closed cases in --data)"),
+              data: Path = typer.Option(Path("data")),
+              cases_per_day: float = 1000, review_capacity: float = 60, fraud_rate: float = 0.03,
+              avg_fraud_loss: float = 2500, review_cost: float = 25,
+              out: Optional[Path] = typer.Option(None, help="Write the Markdown report here")):
+    """Threshold sweep, the threshold for your review capacity, ROI and a fairness check, from labelled cases."""
+    from . import calibrate as cal
+    from .store import Store
+
+    data_ = cal.from_benchmark(results) if results else cal.from_store(Store(data / "evcheck.db"))
+    if not data_ or len({x.fraud for x in data_}) < 2:
+        typer.echo("Need labelled cases of both kinds: close cases as fraud/legitimate in the UI, or pass --results.", err=True)
+        raise typer.Exit(2)
+    md, _ = cal.report(data_, cal.Economics(cases_per_day, review_capacity, fraud_rate, avg_fraud_loss, review_cost))
+    if out:
+        out.write_text(md)
+    typer.echo(md)
+
+
+@app.command()
+def watch(inbox: Path = typer.Argument(..., file_okay=False), data: Path = typer.Option(Path("data")),
+          once: bool = typer.Option(False, help="Process what is there now and exit")):
+    """Submit case folders dropped into an inbox folder (for systems that can only export files)."""
+    from .integrations import watch as run_watch
+
+    inbox.mkdir(parents=True, exist_ok=True)
+    ids = run_watch(inbox, service(data, "none"), once=once)
+    if once:
+        typer.echo(f"submitted {len(ids)} case(s)")
+
+
+@app.command()
+def retention(days: int = typer.Option(..., help="Delete evidence files of cases closed more than this many days ago"),
+              data: Path = typer.Option(Path("data"))):
+    """Apply the retention policy (verdicts, decisions and the audit log are kept)."""
+    removed = service(data, "none").retention(days)
+    typer.echo(f"purged evidence files of {len(removed)} case(s)")
 
 
 @app.command()

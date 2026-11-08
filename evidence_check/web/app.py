@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from .. import report
+from ..privacy import mask_verdict
 from ..service import IntakeError, Service, safe_name
 
 ROLES = {"intake": 0, "reviewer": 1, "investigator": 2, "admin": 3}
@@ -122,7 +123,7 @@ def create_app(service: Service, keys: dict[str, str] | None = None) -> FastAPI:
         except IntakeError as e:
             raise HTTPException(422, str(e))
         row = service.store.case(cid)
-        return {"case_id": cid, "status": row["status"], "verdict": public_verdict(row["verdict"]) if wait else None}
+        return {"case_id": cid, "status": row["status"], "verdict": public_verdict(mask_verdict(row["verdict"], user["role"])) if wait else None}
 
     @app.get("/api/cases")
     def list_cases(level: str | None = None, status: str | None = None, user=Depends(need("reviewer"))):
@@ -132,7 +133,8 @@ def create_app(service: Service, keys: dict[str, str] | None = None) -> FastAPI:
     def get_case(case_id: str, user=Depends(need("reviewer"))):
         row = case_or_404(case_id)
         service.store.audit(user["name"], "view", case_id, {"via": "api"})
-        return {**queue_row(row), "verdict": public_verdict(row["verdict"]), "decisions": service.store.decisions(case_id)}
+        return {**queue_row(row), "verdict": public_verdict(mask_verdict(row["verdict"], user["role"])),
+                "decisions": service.store.decisions(case_id)}
 
     @app.post("/api/cases/{case_id}/decisions")
     def decide(case_id: str, d: Decision, user=Depends(need("reviewer"))):
@@ -225,7 +227,7 @@ def create_app(service: Service, keys: dict[str, str] | None = None) -> FastAPI:
         order = [r["case_id"] for r in service.store.cases() if r["level"] in ("investigate", "review")]
         i = order.index(case_id) if case_id in order else -1
         nxt = order[i + 1] if 0 <= i < len(order) - 1 else None
-        v = row["verdict"]
+        v = mask_verdict(row["verdict"], user["role"])
         others = {}  # earlier evidence for duplicate findings, shown side by side
         for i, f in enumerate((v or {}).get("findings", [])):
             p = f.get("pointer") or {}
@@ -304,4 +306,4 @@ def dashboard_data(service: Service) -> dict:
     return {"cases": len(rows), "checked": len(checked), "by_level": by_level, "queue": service.store.queue_stats(),
             "fired": dict(sorted(fired.items(), key=lambda kv: -kv[1])), "precision": precision,
             "median_decision_s": sorted(times)[len(times) // 2] if times else None,
-            "audit_ok": service.store.verify_audit()[0], "history": service.history.stats()}
+            "audit_ok": service.store.verify_audit()[0], "history": service.history.stats(), "drift": service.drift()}

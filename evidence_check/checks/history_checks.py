@@ -25,13 +25,15 @@ class DuplicateEvidenceCheck:
                 seen.add(m.entry.case_id)
                 other_customer = bool(m.entry.claimant_id and m.entry.claimant_id != ctx.case.claimant_id)
                 what = "receipt" if m.kind == "receipt" or ev.role in ("receipt", "invoice") else "photo"
-                if other_customer:
-                    sev, who = Severity.CRITICAL, "by a different customer"
+                who = "by a different customer" if other_customer else "by the same customer"
+                if m.variant:  # supporting signal only: identical receipts with different dates happen by chance too
+                    sev, title = Severity.MEDIUM, f"This {what} is nearly identical to one in case {m.entry.case_id} ({who[3:]}), apart from the date."
                 else:
-                    sev, who = Severity.HIGH, "by the same customer"
+                    sev = Severity.CRITICAL if other_customer else Severity.HIGH
+                    title = f"This {what} was already submitted in case {m.entry.case_id}, {who}."
                 out.append(Finding(
                     check=self.id, layer="history", severity=sev, confidence=round(min(0.98, 0.6 + 0.4 * m.score), 2),
-                    title=f"This {what} was already submitted in case {m.entry.case_id}, {who}.",
+                    title=title,
                     detail=f"{m.detail}; earlier file {m.entry.name}",
                     pointer=Pointer(evidence_id=ev.id, other_case=m.entry.case_id, other_evidence=m.entry.evidence_id)))
         return out

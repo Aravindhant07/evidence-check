@@ -17,6 +17,13 @@
   <div class="panel tile"><div class="n">{{ d.queue.get('queued', 0) + d.queue.get('running', 0) }}</div><div class="l">waiting to be checked{% if d.queue.get('failed') %} · {{ d.queue.failed }} failed{% endif %}</div></div>
   <div class="panel tile"><div class="n">{{ '%.0f s'|format(d.median_decision_s) if d.median_decision_s else '—' }}</div><div class="l">median time to decide a reason</div></div>
 </div>
+{% if d.drift %}
+<div class="panel" role="alert" style="border-color:var(--review);margin-bottom:20px">
+  <h2 style="font-size:1.05rem;margin-top:0;color:var(--review)">Drift alerts</h2>
+  <p class="small muted">These checks fire at an unusual rate today compared with the last 30 days. Usually the input changed (new phone model, scanner, partner export) or a new fraud pattern appeared.</p>
+  <ul>{% for a in d.drift %}<li><strong>{{ a.check|replace('_', ' ') }}</strong> {{ a.direction }}: {{ '%.1f'|format(a.today * 100) }}% of today's cases vs {{ '%.1f'|format(a.baseline * 100) }}% normally</li>{% endfor %}</ul>
+</div>
+{% endif %}
 <div class="cols">
   <section class="panel">
     <h2 style="font-size:1.05rem;margin-top:0">How often each check fires</h2>

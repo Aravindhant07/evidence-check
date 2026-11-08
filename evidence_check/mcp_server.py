@@ -16,6 +16,7 @@ from mcp.types import ToolAnnotations
 
 from . import report
 from .checks.base import REGISTRY
+from .privacy import mask_verdict
 from .service import IntakeError, Service
 
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
@@ -34,7 +35,7 @@ def untrusted(text: Any) -> dict[str, Any]:
 
 
 def case_view(row: dict, full: bool = True) -> dict[str, Any]:
-    v = row.get("verdict") or {}
+    v = mask_verdict(row.get("verdict"), "reviewer") or {}
     out = {"case_id": row["case_id"], "domain": row["domain"], "status": row["status"], "level": row["level"],
            "score": row["score"], "summary": report.summary(v) if v else None}
     if not full or not v:
