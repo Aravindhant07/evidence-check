@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% set active = 'dashboard' %}
+{% block title %}Dashboard · evidence-check{% endblock %}
+{% block style %}
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.tile .n { font-size: 1.8rem; font-weight: 700; } .tile .l { color: var(--muted); font-size: .85rem; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; } @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+.bar { height: 8px; background: var(--accent); border-radius: 4px; min-width: 2px; }
+{% endblock %}
+{% block main %}
+<h1 style="margin-top:0">Dashboard</h1>
+<div class="tiles">
+  <div class="panel tile"><div class="n">{{ d.checked }}</div><div class="l">cases checked</div></div>
+  <div class="panel tile"><div class="n" style="color:var(--investigate)">{{ d.by_level.investigate }}</div><div class="l">to investigate</div></div>
+  <div class="panel tile"><div class="n" style="color:var(--review)">{{ d.by_level.review }}</div><div class="l">to review</div></div>
+  <div class="panel tile"><div class="n" style="color:var(--clear)">{{ d.by_level.clear }}</div><div class="l">clear</div></div>
+  <div class="panel tile"><div class="n">{{ d.queue.get('queued', 0) + d.queue.get('running', 0) }}</div><div class="l">waiting to be checked{% if d.queue.get('failed') %} · {{ d.queue.failed }} failed{% endif %}</div></div>
+  <div class="panel tile"><div class="n">{{ '%.0f s'|format(d.median_decision_s) if d.median_decision_s else '—' }}</div><div class="l">median time to decide a reason</div></div>
+</div>
+<div class="cols">
+  <section class="panel">
+    <h2 style="font-size:1.05rem;margin-top:0">How often each check fires</h2>
+    {% set top = (d.fired.values()|list|max) if d.fired else 1 %}
+    <table><thead><tr><th>Check</th><th>Cases</th><th style="width:40%"></th></tr></thead><tbody>
+    {% for c, n in d.fired.items() %}<tr><td>{{ c|replace('_', ' ') }}</td><td>{{ n }}</td><td><div class="bar" style="width:{{ 100 * n / top }}%"></div></td></tr>
+    {% else %}<tr><td colspan="3" class="muted">Nothing has fired yet.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+  <section class="panel">
+    <h2 style="font-size:1.05rem;margin-top:0">Reviewer agreement per check</h2>
+    <p class="small muted">Share of reasons reviewers confirmed. Low agreement means a check needs tuning; the improvement agent uses this.</p>
+    <table><thead><tr><th>Check</th><th>Confirmed</th><th>Dismissed</th><th>Agreement</th></tr></thead><tbody>
+    {% for c, s in d.precision.items() %}<tr><td>{{ c|replace('_', ' ') }}</td><td>{{ s.confirmed }}</td><td>{{ s.dismissed }}</td><td>{{ '%.0f%%'|format(100 * s.precision) if s.precision is not none else '—' }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">No decisions yet.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+</div>
+<p class="small muted" style="margin-top:20px">History index: {{ d.history.evidence }} files from {{ d.history.cases }} cases ·
+  Audit log integrity: {% if d.audit_ok %}<span style="color:var(--clear)">verified</span>{% else %}<strong style="color:var(--investigate)">BROKEN, investigate</strong>{% endif %}</p>
+{% endblock %}

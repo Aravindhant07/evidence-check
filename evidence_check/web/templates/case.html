@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% set active = 'queue' %}
+{% block title %}{{ row.case_id }} · evidence-check{% endblock %}
+{% block style %}
+.top { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; } .top h1 { margin: 0; font-size: 1.5rem; }
+.lead { font-size: 1.1rem; margin: 8px 0 4px; }
+.facts { display: flex; gap: 24px; flex-wrap: wrap; margin: 8px 0 20px; } .facts div span { display: block; }
+.grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 20px; align-items: start; }
+@media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+.finding { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--panel); }
+.finding:focus, .finding.focused { outline: 3px solid var(--focus); outline-offset: 1px; }
+.finding h3 { font-size: 1rem; margin: 6px 0; font-weight: 600; }
+.finding details { margin: 6px 0; } .finding summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+.finding .detail { font-size: .85rem; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+.decide { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; } .decide input[name=reason] { flex: 1; min-width: 160px; }
+.decided { font-size: .85rem; margin-top: 6px; } .decided.confirm { color: var(--investigate); } .decided.dismiss { color: var(--clear); }
+.evidence { position: sticky; top: 12px; }
+figure { margin: 0 0 16px; } .frame { position: relative; display: inline-block; max-width: 100%; }
+.frame img { max-width: 100%; height: auto; display: block; border-radius: 6px; }
+.frame svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.frame svg rect { fill: none; stroke-width: 0.6%; } .frame .heat { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .75; display: none; }
+.hide-boxes svg { display: none; } .show-heat .heat { display: block; }
+figcaption { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+.extract { font-size: .85rem; margin: 6px 0 0; } .extract dt { color: var(--muted); float: left; clear: left; width: 120px; } .extract dd { margin: 0 0 2px 128px; }
+.side { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; } .side img { width: 100%; border-radius: 6px; border: 1px solid var(--line); }
+.help { display: none; } .help.open { display: block; }
+.toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; font-size: .9rem; }
+{% endblock %}
+{% block main %}
+<div class="top">
+  <h1>{{ row.case_id }}</h1>
+  {% if v %}<span class="chip {{ v.level }}">{{ v.level }}</span><span class="muted">risk {{ '%.2f'|format(v.score) }}</span>{% endif %}
+  <span class="muted small">{{ row.status|replace('closed:', 'closed: ') }}</span>
+  <span style="margin-left:auto" class="small">
+    <a href="/cases/{{ row.case_id }}/report.html">Export report</a> ·
+    {% if next_case %}<a href="/cases/{{ next_case }}" id="next">Next case <kbd>N</kbd></a> · {% endif %}
+    <a href="#" id="help-toggle">Shortcuts <kbd>?</kbd></a>
+  </span>
+</div>
+{% if not v %}
+<p class="panel">This case is {{ row.status }}. It will appear here once it has been checked.</p>
+{% else %}
+<p class="lead">{{ summary }}</p>
+<div class="facts small">
+  {% set c = v.case %}
+  <div><span class="muted">Domain</span>{{ c.domain|replace('_', ' ') }}</div>
+  <div><span class="muted">Claimant</span>{{ c.claimant_name or c.claimant_id }}</div>
+  <div><span class="muted">Claimed</span>{% if c.claimed_amount %}${{ '{:,.2f}'.format(c.claimed_amount) }}{% else %}—{% endif %}</div>
+  <div><span class="muted">Type</span>{{ (c.loss_type or c.category or '—')|replace('_', ' ') }}</div>
+  <div><span class="muted">Incident</span>{{ c.incident_date or '—' }}</div>
+  <div><span class="muted">Filed</span>{{ c.filed_date or '—' }}</div>
+  <div><span class="muted">Checked in</span>{{ v.seconds }} s</div>
+</div>
+<div class="panel help" id="help" role="region" aria-label="Keyboard shortcuts">
+  <kbd>J</kbd>/<kbd>K</kbd> next / previous reason · <kbd>C</kbd> confirm · <kbd>D</kbd> dismiss (type a reason, then Enter) ·
+  <kbd>H</kbd> toggle highlights · <kbd>M</kbd> toggle heatmaps · <kbd>N</kbd> next case · <kbd>?</kbd> this help
+</div>
+<div class="grid">
+  <section aria-label="Reasons">
+    <h2 style="font-size:1.1rem">Reasons ({{ v.findings|length }})</h2>
+    {% for f in v.findings %}
+    {% set d = decisions.get(loop.index0) %}
+    <article class="finding" id="f{{ loop.index0 }}" tabindex="-1" data-i="{{ loop.index0 }}" data-ev="{{ (f.pointer or {}).evidence_id or '' }}">
+      <span class="sev {{ f.severity }}">{{ f.severity }}</span>
+      <span class="small muted">{{ f.check|replace('_', ' ') }} · confidence {{ '%.0f'|format(f.confidence * 100) }}%</span>
+      <h3>{{ f.title }}</h3>
+      {% set ev = (v.evidence|selectattr('id', 'equalto', (f.pointer or {}).evidence_id)|list) %}
+      {% if ev %}<div class="small"><a href="#ev-{{ ev[0].id }}">{{ ev[0].name }}</a></div>{% endif %}
+      {% if f.detail %}<details><summary>Show details</summary><div class="detail">{{ f.detail }}</div></details>{% endif %}
+      {% if loop.index0 in others %}{% set o = others[loop.index0] %}
+      <div class="side">
+        <figure><img src="/files/{{ row.case_id }}/{{ ev[0].name if ev else '' }}" alt="This case's file"><figcaption>This case</figcaption></figure>
+        <figure><img src="/files/{{ o.case_id }}/{{ o.name }}" alt="Earlier file in {{ o.case_id }}"><figcaption>Earlier: <a href="/cases/{{ o.case_id }}">{{ o.case_id }}</a> ({{ o.claimant_id }})</figcaption></figure>
+      </div>
+      {% endif %}
+      {% if d %}<div class="decided {{ d.decision }}">{{ 'Confirmed' if d.decision == 'confirm' else 'Dismissed' }} by {{ d.actor }}{% if d.reason %}: “{{ d.reason }}”{% endif %}</div>{% endif %}
+      {% if f.severity != 'info' %}
+      <form class="decide" method="post" action="/cases/{{ row.case_id }}/findings/{{ loop.index0 }}">
+        <input type="hidden" name="opened" value="{{ opened }}">
+        <label class="small" for="r{{ loop.index0 }}" style="position:absolute;left:-999px">Reason</label>
+        <input id="r{{ loop.index0 }}" name="reason" placeholder="Reason (optional for confirm)" autocomplete="off">
+        <button name="decision" value="confirm" type="submit">Confirm</button>
+        <button name="decision" value="dismiss" type="submit">Dismiss</button>
+      </form>
+      {% endif %}
+    </article>
+    {% else %}
+    <p class="panel">No reasons: every check passed.</p>
+    {% endfor %}
+    {% if v.skipped %}<details class="small"><summary>Not checked ({{ v.skipped|length }})</summary><ul>{% for s in v.skipped %}<li>{{ s }}</li>{% endfor %}</ul></details>{% endif %}
+    {% if can_close %}
+    <form class="panel" method="post" action="/cases/{{ row.case_id }}/close" style="margin-top:16px">
+      <h2 style="font-size:1rem;margin-top:0">Close the case</h2>
+      <label for="outcome">Outcome</label>
+      <select id="outcome" name="outcome"><option value="legitimate">Legitimate</option><option value="needs_info">Needs more information</option><option value="fraud">Fraud confirmed</option></select>
+      <input name="note" placeholder="Note for the file" aria-label="Note" style="width:100%;margin:8px 0">
+      <button class="primary" type="submit">Close case</button>
+      <p class="small muted">Closing records a human decision. Nothing is denied automatically.</p>
+    </form>
+    {% endif %}
+  </section>
+  <section class="evidence" aria-label="Evidence">
+    <div class="toolbar">
+      <h2 style="font-size:1.1rem;margin:0">Evidence ({{ v.evidence|length }})</h2>
+      <label><input type="checkbox" id="t-boxes" checked> Highlights</label>
+      <label><input type="checkbox" id="t-heat"> Heatmaps</label>
+    </div>
+    <div id="viewer">
+    {% for e in v.evidence %}
+    <figure id="ev-{{ e.id }}">
+      {% if e.kind == 'image' %}
+      <div class="frame">
+        <img src="/files/{{ row.case_id }}/{{ e.name }}" alt="{{ e.role|replace('_', ' ') }}: {{ e.name }}" loading="lazy">
+        {% for b in boxes.get(e.id, []) if b.heatmap %}<img class="heat" src="/artefacts/{{ row.case_id }}/{{ b.heatmap }}" alt="">{% endfor %}
+        {% if e.width and boxes.get(e.id) %}
+        <svg viewBox="0 0 {{ e.width }} {{ e.height }}" preserveAspectRatio="none" aria-hidden="true">
+          {% for b in boxes[e.id] if b.box %}<rect data-i="{{ b.i }}" x="{{ b.box[0] }}" y="{{ b.box[1] }}" width="{{ b.box[2] - b.box[0] }}" height="{{ b.box[3] - b.box[1] }}" style="stroke: var(--{{ b.sev }})"/>{% endfor %}
+        </svg>
+        {% endif %}
+      </div>
+      {% elif e.kind == 'audio' %}
+      <audio controls preload="none" src="/files/{{ row.case_id }}/{{ e.name }}" style="width:100%"></audio>
+      {% else %}
+      <a href="/files/{{ row.case_id }}/{{ e.name }}">Open {{ e.name }}</a>
+      {% endif %}
+      <figcaption><strong>{{ e.name }}</strong> · {{ e.role|replace('_', ' ') }}{% if e.width %} · {{ e.width }}×{{ e.height }}{% endif %}</figcaption>
+      <dl class="extract">
+        {% if e.capture_time %}<dt>Taken</dt><dd>{{ e.capture_time }}</dd>{% endif %}
+        {% if e.camera %}<dt>Camera</dt><dd>{{ e.camera }}</dd>{% endif %}
+        {% if e.software %}<dt>Software</dt><dd>{{ e.software }}</dd>{% endif %}
+        {% if e.gps %}<dt>GPS</dt><dd>{{ '%.4f'|format(e.gps.lat) }}, {{ '%.4f'|format(e.gps.lon) }}</dd>{% endif %}
+        {% if e.receipt %}{% set r = e.receipt %}
+          {% if r.merchant %}<dt>Merchant</dt><dd>{{ r.merchant.value }}</dd>{% endif %}
+          {% if r.date %}<dt>Date</dt><dd>{{ r.date.value }}</dd>{% endif %}
+          {% if r.subtotal %}<dt>Subtotal</dt><dd>{{ '%.2f'|format(r.subtotal.value) }}</dd>{% endif %}
+          {% if r.tax %}<dt>Tax</dt><dd>{{ '%.2f'|format(r.tax.value) }}</dd>{% endif %}
+          {% if r.total %}<dt>Total</dt><dd>{{ '%.2f'|format(r.total.value) }}</dd>{% endif %}
+        {% endif %}
+        {% if e.caption %}<dt>Model sees</dt><dd>{{ e.caption }}</dd>{% endif %}
+        {% if e.labels %}<dt>Labels</dt><dd>{% for k, p in e.labels.items() %}{{ k|replace('a photo of ', '') }} {{ '%.0f'|format(p * 100) }}%{% if not loop.last %}; {% endif %}{% endfor %}</dd>{% endif %}
+        {% if e.transcript %}<dt>Transcript</dt><dd>“{{ e.transcript }}”</dd>{% endif %}
+      </dl>
+    </figure>
+    {% endfor %}
+    </div>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+{% block script %}
+<script>
+(() => {
+  const items = [...document.querySelectorAll('.finding')];
+  let cur = -1;
+  const focus = i => {
+    if (!items.length) return;
+    cur = Math.max(0, Math.min(items.length - 1, i));
+    items.forEach(x => x.classList.remove('focused'));
+    const el = items[cur]; el.classList.add('focused'); el.focus({preventScroll: true});
+    el.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    const ev = el.dataset.ev && document.getElementById('ev-' + el.dataset.ev);
+    if (ev) ev.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  };
+  const viewer = document.getElementById('viewer');
+  const tb = document.getElementById('t-boxes'), th = document.getElementById('t-heat');
+  if (tb) tb.addEventListener('change', () => viewer.classList.toggle('hide-boxes', !tb.checked));
+  if (th) th.addEventListener('change', () => viewer.classList.toggle('show-heat', th.checked));
+  const help = document.getElementById('help');
+  document.getElementById('help-toggle').addEventListener('click', e => { e.preventDefault(); help && help.classList.toggle('open'); });
+  // Enter in a reason box must not silently confirm (the form's first button): it only acts after D was pressed.
+  document.querySelectorAll('input[name=reason]').forEach(r => r.addEventListener('keydown', ev => { if (ev.key === 'Enter') ev.preventDefault(); }));
+  if (location.hash.startsWith('#f')) focus(items.findIndex(x => '#' + x.id === location.hash));
+  document.addEventListener('keydown', e => {
+    if (e.target.matches('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'j') focus(cur + 1);
+    else if (k === 'k') focus(cur - 1);
+    else if (k === 'c' && cur >= 0) items[cur].querySelector('button[value=confirm]')?.click();
+    else if (k === 'd' && cur >= 0) {
+      const f = items[cur].querySelector('form'); if (!f) return;
+      e.preventDefault();
+      const r = f.querySelector('input[name=reason]'); r.focus();
+      r.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); f.querySelector('button[value=dismiss]').click(); } }, {once: true});
+    }
+    else if (k === 'h' && tb) { tb.checked = !tb.checked; tb.dispatchEvent(new Event('change')); }
+    else if (k === 'm' && th) { th.checked = !th.checked; th.dispatchEvent(new Event('change')); }
+    else if (k === 'n') document.getElementById('next')?.click();
+    else if (e.key === '?') help && help.classList.toggle('open');
+  });
+})();
+</script>
+{% endblock %}

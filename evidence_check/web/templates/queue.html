@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% set active = 'queue' %}
+{% block title %}Review queue · evidence-check{% endblock %}
+{% block style %}
+.filters { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+.filters a { text-decoration: none; } .filters a[aria-current] .chip { outline: 2px solid currentColor; }
+td.reason { max-width: 520px; } tr:hover td { background: var(--bg); }
+.empty { text-align: center; padding: 48px 16px; }
+{% endblock %}
+{% block main %}
+<h1 style="margin-top:0">Review queue</h1>
+<p class="muted">Highest risk first. Each verdict is a recommendation: a person decides every case.</p>
+<div class="filters" role="navigation" aria-label="Filter by verdict">
+  <a href="/" {% if not level %}aria-current="page"{% endif %}><span class="chip none">All</span></a>
+  <a href="/?level=investigate" {% if level == 'investigate' %}aria-current="page"{% endif %}><span class="chip investigate">Investigate · {{ counts.investigate }}</span></a>
+  <a href="/?level=review" {% if level == 'review' %}aria-current="page"{% endif %}><span class="chip review">Review · {{ counts.review }}</span></a>
+  <a href="/?level=clear" {% if level == 'clear' %}aria-current="page"{% endif %}><span class="chip clear">Clear · {{ counts.clear }}</span></a>
+</div>
+<div class="panel" style="padding:0; overflow-x:auto">
+{% if rows %}
+<table>
+  <thead><tr><th>Risk</th><th>Case</th><th class="hide-sm">Type</th><th class="hide-sm">Amount</th><th>Main reason</th><th class="hide-sm">Status</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{% if r.level %}<span class="chip {{ r.level }}">{{ r.level }}</span><br>
+      <span class="risk" role="img" aria-label="risk {{ '%.0f'|format((r.score or 0) * 100) }} percent"><span style="width:{{ (r.score or 0) * 100 }}%; background: var(--{{ r.level }})"></span></span>
+      <span class="small muted">{{ '%.2f'|format(r.score or 0) }}</span>{% else %}<span class="chip none">{{ r.status }}</span>{% endif %}</td>
+    <td><a href="/cases/{{ r.case_id }}">{{ r.case_id }}</a><div class="small muted">{{ r.domain|replace('_', ' ') }}</div></td>
+    <td class="hide-sm">{{ r.kind or '—' }}</td>
+    <td class="hide-sm">{% if r.amount %}${{ '{:,.2f}'.format(r.amount) }}{% else %}—{% endif %}</td>
+    <td class="reason">{{ r.top_reason or 'No problems found.' }}{% if r.reasons > 1 %} <span class="muted small">+{{ r.reasons - 1 }} more</span>{% endif %}</td>
+    <td class="hide-sm small">{{ r.status|replace('closed:', 'closed: ') }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">
+  <p><strong>No cases yet.</strong></p>
+  <p class="muted">Submit one with <code>evcheck submit CASE_DIR</code>, <code>POST /api/cases</code>, or load sample cases with <code>evcheck demo</code>.</p>
+</div>
+{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}evidence-check{% endblock %}</title>
+<style>
+:root {
+  --bg: #f8f9fb; --panel: #ffffff; --fg: #101828; --muted: #475467; --line: #e4e7ec; --accent: #1d4ed8; --accent-fg: #fff;
+  --clear: #067647; --clear-bg: #ecfdf3; --review: #b54708; --review-bg: #fffaeb; --investigate: #b42318; --investigate-bg: #fef3f2;
+  --critical: #b42318; --high: #c4320a; --medium: #b54708; --low: #667085; --info: #667085; --focus: #2563eb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c111d; --panel: #161b26; --fg: #f5f5f6; --muted: #a4a7ae; --line: #2a303c; --accent: #60a5fa; --accent-fg: #0c111d;
+    --clear: #47cd89; --clear-bg: #053321; --review: #fdb022; --review-bg: #4e1d09; --investigate: #f97066; --investigate-bg: #55160c;
+    --critical: #f97066; --high: #f38744; --medium: #fdb022; --low: #a4a7ae; --info: #a4a7ae; --focus: #93c5fd;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.skip { position: absolute; left: -999px; } .skip:focus { left: 16px; top: 8px; background: var(--panel); padding: 8px; z-index: 9; }
+header { display: flex; align-items: center; gap: 24px; padding: 12px 24px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header .brand { font-weight: 700; text-decoration: none; color: var(--fg); }
+header nav { display: flex; gap: 16px; } header nav a { color: var(--muted); text-decoration: none; } header nav a[aria-current] { color: var(--fg); font-weight: 600; }
+header .who { margin-left: auto; color: var(--muted); font-size: .85rem; }
+main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.muted { color: var(--muted); } .small { font-size: .85rem; }
+.chip { display: inline-block; border-radius: 999px; padding: 1px 10px; font-size: .8rem; font-weight: 600; text-transform: capitalize; }
+.chip.clear { color: var(--clear); background: var(--clear-bg); } .chip.review { color: var(--review); background: var(--review-bg); }
+.chip.investigate { color: var(--investigate); background: var(--investigate-bg); } .chip.none { color: var(--muted); border: 1px solid var(--line); }
+.sev { display: inline-block; min-width: 64px; text-align: center; border-radius: 4px; padding: 0 6px; font-size: .72rem; font-weight: 700; text-transform: uppercase; color: var(--panel); }
+.sev.critical { background: var(--critical); } .sev.high { background: var(--high); } .sev.medium { background: var(--medium); }
+.sev.low { background: var(--low); } .sev.info { background: transparent; color: var(--info); border: 1px solid var(--line); }
+button, .btn { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 6px; padding: 5px 12px; cursor: pointer; text-decoration: none; display: inline-block; }
+button.primary, .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+input, select, textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+table { width: 100%; border-collapse: collapse; } th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .8rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.risk { width: 72px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; display: inline-block; vertical-align: middle; }
+.risk > span { display: block; height: 100%; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: .8rem; background: var(--bg); }
+@media (max-width: 720px) { main { padding: 16px; } header { padding: 12px 16px; } .hide-sm { display: none; } }
+{% block style %}{% endblock %}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header>
+  <a class="brand" href="/">evidence-check</a>
+  {% if user.role %}
+  <nav aria-label="Main">
+    <a href="/" {% if active == 'queue' %}aria-current="page"{% endif %}>Queue</a>
+    <a href="/dashboard" {% if active == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+    <a href="/api/docs">API</a>
+  </nav>
+  <span class="who">{% if local_mode %}Local mode (no keys configured){% else %}{{ user.name }} · <a href="/logout">Sign out</a>{% endif %}</span>
+  {% endif %}
+</header>
+<main id="main">{% block main %}{% endblock %}</main>
+{% block script %}{% endblock %}
+</body>
+</html>

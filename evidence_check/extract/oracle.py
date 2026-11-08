@@ -15,10 +15,16 @@ from .receipt import parse_lines
 class OracleModels:
     name = "oracle"
 
+    def __init__(self, truth_root: str | Path | None = None):
+        """truth_root: where to find <case_id>/truth.json when it is not next to the evidence (stored bundles)."""
+        self.truth_root = Path(truth_root) if truth_root else None
+
     def extract_all(self, evidence: list[Evidence], policy=None, case: Case | None = None) -> list[str]:
         notes = []
         for ev in evidence:
             truth = Path(ev.file).parent / "truth.json"
+            if not truth.exists() and self.truth_root:
+                truth = self.truth_root / ev.case_id / "truth.json"
             if not truth.exists():
                 notes.append(f"oracle: no truth.json for {ev.name}")
                 continue

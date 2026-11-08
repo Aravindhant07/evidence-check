@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Sign in · evidence-check{% endblock %}
+{% block main %}
+<form class="panel" method="post" action="/login" style="max-width:420px;margin:48px auto">
+  <h1 style="margin-top:0;font-size:1.3rem">Sign in</h1>
+  {% if error %}<p role="alert" style="color:var(--investigate)">{{ error }}</p>{% endif %}
+  <label for="key">Access key</label>
+  <input id="key" name="key" type="password" autocomplete="current-password" required style="width:100%;margin:6px 0 12px" autofocus>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="primary" type="submit">Sign in</button>
+  <p class="small muted">Ask your administrator for a key. Every view and decision is recorded in the audit log.</p>
+</form>
+{% endblock %}
