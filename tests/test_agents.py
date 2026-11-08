@@ -157,3 +157,21 @@ def test_red_team_finds_metadata_evasion_without_touching_history(tmp_path):
     assert res.original_level != "clear" and "gps_location" in res.original_checks
     assert res.evasions and "gps_location" in res.evasions[0]["defeated"]
     assert len(hist.entries) == n0
+
+
+def test_gate_resists_mislabelled_data():
+    """Seven 'false alarms' that are really reused photos (wrong labels) must not talk the gate into silencing the check."""
+    def row(case, fraud, man, findings):
+        return {"case": case, "domain": "insurance_claims", "fraud": fraud, "manipulation": man, "segment": {}, "findings": findings}
+    dup = {"check": "duplicate_evidence", "layer": "history", "severity": "critical", "confidence": 0.98, "title": "reused"}
+    ela = {"check": "error_level", "layer": "item", "severity": "low", "confidence": 0.8, "title": "ela"}
+    card = {"check": "card_match", "layer": "case", "severity": "high", "confidence": 0.85, "title": "no payment"}
+    rows = [row(f"L{i}", False, None, [dup]) for i in range(7)]            # mislabelled: really reused photos
+    rows += [row(f"C{i}", False, None, []) for i in range(20)]
+    rows += [row("R1", True, "reused_photo", [dup, ela, card]), row("R2", True, "reused_photo", [dup, ela, card])]
+    base = load_policy("insurance_claims")
+    tempting = apply(base, with_proposal({}, Proposal("set_check_weight", "insurance_claims", {"check": "duplicate_evidence", "value": 0.25}, "x")))
+    g = gate(rows, base, tempting)
+    assert g["after"]["false_alarm_rate"] < g["before"]["false_alarm_rate"]  # the rates alone look like a win...
+    assert not g["passed"] and "silences critical" in g["reasons"][0]       # ...but the invariant blocks it
+    assert {f["case"] for f in g["flips"]} == {f"L{i}" for i in range(7)}    # and names the cases to inspect

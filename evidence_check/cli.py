@@ -13,6 +13,8 @@ import typer
 app = typer.Typer(add_completion=False, no_args_is_help=True, help="Check the evidence behind claims and expense reports.")
 keys_app = typer.Typer(no_args_is_help=True, help="Manage API keys.")
 app.add_typer(keys_app, name="keys")
+improve_app = typer.Typer(no_args_is_help=True, help="Policy improvement: proposals, the gate, approval, shadow, rollback.")
+app.add_typer(improve_app, name="improve")
 
 MODELS_HELP = "Perception: none (metadata and PDF text only), real (local Hugging Face models), oracle (benchmark ground truth)"
 
@@ -203,6 +205,113 @@ def retention(days: int = typer.Option(..., help="Delete evidence files of cases
     """Apply the retention policy (verdicts, decisions and the audit log are kept)."""
     removed = service(data, "none").retention(days)
     typer.echo(f"purged evidence files of {len(removed)} case(s)")
+
+
+@app.command()
+def investigate(case_id: str, data: Path = typer.Option(Path("data")),
+                model: str = typer.Option("local", help="local (Qwen2.5-3B on CPU, pinned) or scripted:<file.json> for replays")):
+    """Ask the investigator agent for a cited brief on a case (read-only; every sentence is citation-checked)."""
+    import anyio
+
+    from .agents.investigator import investigate as run
+    from .agents.runtime import LocalChatModel
+    from .mcp_server import build_server
+
+    svc = service(data, "none")
+    if model.startswith("scripted:"):
+        replies = json.loads(Path(model.split(":", 1)[1]).read_text())
+
+        class Replay:
+            name = "replay"
+
+            def chat(self, messages):
+                return replies.pop(0)
+
+        llm = Replay()
+    else:
+        llm = LocalChatModel()
+    brief = anyio.run(run, build_server(svc), llm, case_id)
+    svc.store.audit("investigator", "brief", case_id, {"kept": len(brief.kept), "dropped": len(brief.dropped), "model": brief.model})
+    typer.echo(json.dumps(brief.to_dict(), indent=1))
+
+
+@app.command()
+def redteam(case_dir: Path = typer.Argument(..., exists=True, file_okay=False), models: str = typer.Option("none", help=MODELS_HELP),
+            budget: int = 20):
+    """Try to launder a flagged case until it passes; evasions are saved for the evaluation set."""
+    from .agents.redteam import red_team
+
+    res = red_team(case_dir, make_models(models, case_dir.parent), budget=budget)
+    typer.echo(f"{res.case_id}: {res.original_level} ({', '.join(res.original_checks)}); {len(res.attempts)} variants tried")
+    for e in res.evasions:
+        typer.echo(f"  EVADED with {' + '.join(e['transforms'])}: defeated {', '.join(e['defeated'])} -> {e['path']}")
+    if not res.evasions:
+        typer.echo("  no evasion found within the budget")
+
+
+def _rows(results: Optional[Path], svc) -> list[dict]:
+    rows = svc.labelled_rows()
+    if results:
+        rows += json.loads(results.read_text())["rows"]
+    if not rows:
+        typer.echo("No labelled cases: pass --results (a benchmark results.json) or close cases in the UI.", err=True)
+        raise typer.Exit(2)
+    return rows
+
+
+@improve_app.command("propose")
+def improve_propose(domain: str, data: Path = typer.Option(Path("data")), results: Optional[Path] = None):
+    """Search for gated improvements (and reviewer-agreement fixes) and submit them as proposals."""
+    from .agents.improve import from_reviewer_agreement, search
+
+    svc = service(data, "none")
+    rows = _rows(results, svc)
+    base = svc.policies.policy(domain)
+    props = search(rows, domain, base, svc.policies.live_overrides(domain))
+    props += from_reviewer_agreement(svc.store.check_precision(), domain, base)
+    for p in props:
+        p = svc.policies.submit(p, rows)
+        typer.echo(f"{p.id}  {p.status:11s} {p.kind} {p.params}  {p.rationale}")
+        flips = (p.gate or {}).get("flips", [])
+        if flips:
+            typer.echo(f"    {len(flips)} case(s) would change verdict; inspect them before approving: "
+                       + ", ".join(f"{f['case']} ({f['before']}->{f['after']})" for f in flips[:10]))
+    if not props:
+        typer.echo("No change improves on the current policy without failing the gate.")
+
+
+@improve_app.command("list")
+def improve_list(data: Path = typer.Option(Path("data")), status: Optional[str] = None):
+    for p in service(data, "none").policies.proposals(status):
+        typer.echo(f"{p['id']}  {p['status']:11s} {p['domain']}: {p['kind']} {p['params']}  ({p['source']})")
+
+
+@improve_app.command("approve")
+def improve_approve(proposal_id: str, actor: str = typer.Option(..., help="Who approves (recorded in the audit log)"),
+                    data: Path = typer.Option(Path("data"))):
+    """Approve a gated proposal: it runs in shadow next to the live policy."""
+    service(data, "none").policies.approve_for_shadow(proposal_id, actor)
+    typer.echo("in shadow: new cases are scored by both policies; promote when the shadow results look right")
+
+
+@improve_app.command("promote")
+def improve_promote(proposal_id: str, actor: str = typer.Option(...), data: Path = typer.Option(Path("data"))):
+    svc = service(data, "none")
+    rep_ = svc.shadow_report()
+    svc.policies.promote(proposal_id, actor)
+    typer.echo(f"live (shadow agreed on {rep_['agree']} of {rep_['cases']} cases)")
+
+
+@improve_app.command("reject")
+def improve_reject(proposal_id: str, actor: str = typer.Option(...), data: Path = typer.Option(Path("data"))):
+    service(data, "none").policies.reject(proposal_id, actor)
+
+
+@improve_app.command("rollback")
+def improve_rollback(domain: str, actor: str = typer.Option(...), data: Path = typer.Option(Path("data"))):
+    """Restore the previous live policy version in one step."""
+    v = service(data, "none").policies.rollback(domain, actor)
+    typer.echo(f"{domain} back on version {v}")
 
 
 @app.command()

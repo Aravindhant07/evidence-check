@@ -11,7 +11,13 @@ What a proposal can change (and nothing else)
   re-evaluable by re-scoring stored findings, so the gate's numbers are not estimates.
 
 The gate rejects a proposal that lowers recall on ANY manipulation type, raises the false-alarm rate by more than
-0.5 percentage points, or raises the worst segment's false-alarm rate by more than 1 point.
+0.5 percentage points, raises the worst segment's false-alarm rate by more than 1 point, or silences a critical check
+(a confident CRITICAL finding must always reach review on its own).
+
+The gate trusts its labels, and labels can be wrong. Found the hard way: on a run where seven "false alarms" were in fact
+the same photo reused (the labels were wrong), down-weighting the duplicate check to 0.25 passed every metric. Hence the
+critical-check invariant, and every gate report lists the cases whose verdict would flip, so the person approving
+looks at the actual cases behind a change, not only at the rates.
 """
 
 from __future__ import annotations
@@ -82,6 +88,18 @@ def with_proposal(overrides: dict, prop: Proposal) -> dict:
 # -- evaluation on labelled rows ---------------------------------------------------
 # A row: {"domain", "fraud", "manipulation", "findings": [finding dicts], "segment": {...}}
 
+def verdicts(rows: list[dict], policy: DomainPolicy) -> list[bool]:
+    return [score([f for f in map(Finding.model_validate, r["findings"]) if policy.enabled(f.check)], policy)[1] is not Level.CLEAR
+            for r in rows]
+
+
+def silenced_critical(rows: list[dict], policy: DomainPolicy, confidence: float = 0.9) -> list[str]:
+    """Checks whose confident CRITICAL finding could no longer reach review on its own under this policy."""
+    crit = {f["check"] for r in rows for f in r["findings"] if f["severity"] == "critical"}
+    w = policy.weights.get("critical", 0.9)
+    return sorted(c for c in crit if not policy.enabled(c) or w * policy.check_weights.get(c, 1.0) * confidence < policy.thresholds.review)
+
+
 def evaluate_rows(rows: list[dict], policy: DomainPolicy) -> dict:
     by_type: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     seg: dict[str, list[int]] = defaultdict(lambda: [0, 0])
@@ -120,7 +138,13 @@ def gate(rows: list[dict], before: DomainPolicy, after: DomainPolicy, fa_tol: fl
         reasons.append(f"worst segment's false alarms rise from {a['worst_segment_fa']:.1%} to {b['worst_segment_fa']:.1%}")
     if a["n_fraud"] == 0 or a["n_clean"] == 0:
         reasons.append("not enough labelled cases of both kinds to judge")
-    return {"passed": not reasons, "reasons": reasons, "before": a, "after": b}
+    newly_silenced = sorted(set(silenced_critical(rows, after)) - set(silenced_critical(rows, before)))
+    if newly_silenced:
+        reasons.append(f"silences critical findings of: {', '.join(newly_silenced)}")
+    flips = [{"case": r.get("case", f"row{i}"), "fraud_label": r["fraud"], "manipulation": r.get("manipulation"),
+              "before": "flagged" if x else "clear", "after": "flagged" if y else "clear"}
+             for i, (r, x, y) in enumerate(zip(rows, verdicts(rows, before), verdicts(rows, after))) if x != y]
+    return {"passed": not reasons, "reasons": reasons, "before": a, "after": b, "flips": flips}
 
 
 # -- proposal sources ----------------------------------------------------------------
