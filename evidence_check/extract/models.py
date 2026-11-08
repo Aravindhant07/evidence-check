@@ -21,25 +21,51 @@ SCREEN_PROMPT = "a photo of a computer or phone screen"
 GENERIC_PROMPTS = [SCREEN_PROMPT, "a photo of a store receipt", "a photo of a document", "a photo of a person", "a photo of an undamaged room"]
 
 
-def merge_rows(regions: list[tuple[str, tuple[int, int, int, int]]]) -> list[TextLine]:
-    """Join OCR regions that sit on the same row (e.g. 'SUBTOTAL' and '21.45') into one line, left to right."""
-    rows: list[list[tuple[str, tuple]]] = []
-    for text, box in sorted(regions, key=lambda r: (r[1][1] + r[1][3]) / 2):
-        cy, h = (box[1] + box[3]) / 2, max(1, box[3] - box[1])
+def merge_rows(regions: list[tuple[str, tuple[int, int, int, int]]], angle: float = 0.0) -> list[TextLine]:
+    """Join OCR regions on the same printed row (e.g. 'SUBTOTAL' and '21.45') into one line, left to right.
+
+    `angle` is the text tilt in radians: photos of receipts are rarely straight, and across the width of a
+    receipt even 3 degrees moves the amount on the right well above or below its label.
+    """
+    import math
+
+    ca, sa = math.cos(angle), math.sin(angle)
+
+    def upright(box):  # rotate the box centre into text-aligned coordinates
+        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+        return cx * ca + cy * sa, -cx * sa + cy * ca
+
+    items = [(t, b, *upright(b)) for t, b in regions]
+    rows: list[list] = []
+    for t, b, ux, uy in sorted(items, key=lambda r: r[3]):
+        h = max(1, (b[3] - b[1]) * ca)
         for row in rows:
-            rb = row[0][1]
-            rcy, rh = (rb[1] + rb[3]) / 2, max(1, rb[3] - rb[1])
-            if abs(cy - rcy) <= 0.5 * min(h, rh):
-                row.append((text, box))
+            if abs(uy - row[0][3]) <= 0.55 * min(h, row[0][4]):
+                row.append((t, b, ux, uy, h))
                 break
         else:
-            rows.append([(text, box)])
+            rows.append([(t, b, ux, uy, h)])
     out = []
     for row in rows:
-        row.sort(key=lambda r: r[1][0])
-        xs0, ys0, xs1, ys1 = zip(*[b for _, b in row])
-        out.append(TextLine(text="  ".join(t.strip() for t, _ in row if t.strip()), box=(min(xs0), min(ys0), max(xs1), max(ys1))))
+        row.sort(key=lambda r: r[2])
+        xs0, ys0, xs1, ys1 = zip(*[r[1] for r in row])
+        out.append(TextLine(text="  ".join(r[0].strip() for r in row if r[0].strip()), box=(min(xs0), min(ys0), max(xs1), max(ys1))))
     return out
+
+
+def text_angle(quads: list[list[float]]) -> float:
+    """Median baseline angle of OCR quads (x1,y1,x2,y2,x3,y3,x4,y4), weighted toward wide regions."""
+    import math
+
+    angles = []
+    for q in quads:
+        dx, dy = q[2] - q[0], q[3] - q[1]
+        if dx > 40:  # short regions give unreliable angles
+            angles.append(math.atan2(dy, dx))
+    if not angles:
+        return 0.0
+    angles.sort()
+    return angles[len(angles) // 2]
 
 
 class ModelRegistry:
@@ -106,13 +132,14 @@ class ModelRegistry:
 
     def ocr(self, img: Image.Image) -> list[TextLine]:
         res = self._florence(img, "<OCR_WITH_REGION>")
-        regions = []
+        regions, quads = [], []
         for quad, label in zip(res.get("quad_boxes", []), res.get("labels", [])):
             xs, ys = quad[0::2], quad[1::2]
             text = label.replace("</s>", "").replace("<s>", "").strip()
             if text:
                 regions.append((text, (int(min(xs)), int(min(ys)), int(max(xs)) + 1, int(max(ys)) + 1)))
-        return merge_rows(regions)
+                quads.append(quad)
+        return merge_rows(regions, text_angle(quads))
 
     def caption(self, img: Image.Image) -> str:
         res = self._florence(img, "<MORE_DETAILED_CAPTION>", max_new_tokens=120)
@@ -146,7 +173,10 @@ class ModelRegistry:
         with torch.inference_mode():
             logits = model(**proc(images=img.convert("RGB"), return_tensors="pt")).logits[0]
         probs = logits.softmax(-1).tolist()
-        labels = {i: str(l).lower() for i, l in model.config.id2label.items()}
+        labels = {int(i): str(l).lower() for i, l in model.config.id2label.items()}
+        real = [i for i, l in labels.items() if l in ("real", "human", "authentic", "natural")]
+        if real:  # e.g. NYUAD: {dalle, real, sd} -> P(generated) = 1 - P(real)
+            return float(1.0 - sum(probs[i] for i in real))
         ai_idx = [i for i, l in labels.items() if any(k in l for k in ("ai", "fake", "generated", "synthetic", "artificial"))]
         return float(sum(probs[i] for i in ai_idx)) if ai_idx else float("nan")
 

@@ -155,7 +155,7 @@ def scene_photo(rng: random.Random, kind: str = "water_damage", size: tuple[int,
     return img.filter(ImageFilter.GaussianBlur(0.7))
 
 
-def exif_bytes(when: datetime, phone: tuple[str, str, str], gps: tuple[float, float] | None = None, software: str | None = None) -> bytes:
+def exif_bytes(when: datetime, phone: tuple, gps: tuple[float, float] | None = None, software: str | None = None) -> bytes:
     def dms(x: float):
         x = abs(x)
         d, m = int(x), int((x - int(x)) * 60)
@@ -165,7 +165,7 @@ def exif_bytes(when: datetime, phone: tuple[str, str, str], gps: tuple[float, fl
     zeroth = {piexif.ImageIFD.Make: phone[0].encode(), piexif.ImageIFD.Model: phone[1].encode(),
               piexif.ImageIFD.Software: (software or phone[2]).encode(), piexif.ImageIFD.DateTime: ts}
     exif = {piexif.ExifIFD.DateTimeOriginal: ts, piexif.ExifIFD.DateTimeDigitized: ts,
-            piexif.ExifIFD.BodySerialNumber: f"SN{abs(hash(phone[1])) % 10**8:08d}".encode()}
+            piexif.ExifIFD.BodySerialNumber: (phone[3] if len(phone) > 3 else "SN00000000").encode()}  # unique per device
     gps_ifd = {}
     if gps:
         gps_ifd = {piexif.GPSIFD.GPSLatitudeRef: b"N" if gps[0] >= 0 else b"S", piexif.GPSIFD.GPSLatitude: dms(gps[0]),

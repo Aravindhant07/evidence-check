@@ -112,7 +112,7 @@ class Builder:
         incident = pstart + timedelta(days=r.randint(60, 500))
         filed = incident + timedelta(days=r.randint(1, 14))
         claimant = f"P-{r.randint(1000, 9999)}"
-        phone = r.choice(PHONES)
+        phone = (*r.choice(PHONES), f"SN{r.randint(10**7, 10**8 - 1)}")  # each person has their own phone
         evidence, ocr, txns, totals = [], {}, [], []
         # damage photos
         n_photos = r.randint(1, 2)
@@ -202,7 +202,7 @@ class Builder:
         day = date(2026, r.randint(1, 9), r.randint(1, 28))
         filed = day + timedelta(days=r.randint(1, 20))
         employee = f"E-{r.randint(100, 999)}"
-        phone = r.choice(PHONES)
+        phone = (*r.choice(PHONES), f"SN{r.randint(10**7, 10**8 - 1)}")  # each person has their own phone
         spec = self._spec("expense_reports", day, jur, category)
         if manipulation == "wrong_tax":
             bad = round(spec.subtotal * r.choice([0.031, 0.052, 0.137]), 2)
