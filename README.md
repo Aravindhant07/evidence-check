@@ -54,6 +54,9 @@ Running real models surfaced problems the oracle run could not. Each one is now 
 - **The self-improvement gate could be fooled by bad labels**: with those seven mislabelled cases, down-weighting
   the duplicate check passed every metric. The gate now forbids silencing critical findings and lists the exact cases
   whose verdict a change would flip, so the person approving looks at cases, not only rates.
+- **The investigator agent hedged and hallucinated.** Qwen2.5-3B wrote "the receipt may be fraudulent" and turned a reused
+  *photo* into a reused *receipt*. The citation checker now drops hedged accusations and any link to another case that
+  its citations don't support; 5 of 11 sentences survived. [Run and details](docs/results/investigator.md)
 
 ## Quick start
 
