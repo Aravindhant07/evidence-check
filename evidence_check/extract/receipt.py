@@ -11,7 +11,8 @@ from datetime import date, datetime
 
 from ..models import Field_, LineItem, ReceiptFields, TextLine
 
-MONEY = re.compile(r"(?<![\d.])-?\$?\s?(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2})(?!\d)")
+# A trailing "0" after the cents is tolerated: OCR often doubles the last zero ("219.000" for "219.00").
+MONEY = re.compile(r"(?<![\d.])-?\$?\s?(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2})0?(?!\d)")
 TOTAL = re.compile(r"^\s*(GRAND\s+TOTAL|TOTAL\s+DUE|AMOUNT\s+DUE|BALANCE\s+DUE|TOTAL)\b", re.I)
 SUBTOTAL = re.compile(r"^\s*(SUB\s*-?\s*TOTAL|NET\s+AMOUNT)\b", re.I)
 TAX = re.compile(r"^\s*(SALES\s+TAX|TAX|VAT|GST|HST)\b", re.I)

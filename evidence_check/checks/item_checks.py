@@ -104,9 +104,12 @@ class GeneratorTraceCheck:
                                    detail=hay[:300], pointer=Pointer(evidence_id=ev.id, text=what)))
             score = ev.extraction.ai_generated_score
             if score is not None and score >= ctx.policy.tolerances.ai_score:
-                out.append(Finding(check="ai_image_model", layer="item", severity=Severity.MEDIUM, confidence=round(score, 2),
-                                   title="An AI-image detector rates this image as likely generated.",
-                                   detail=f"Detector score {score:.2f} (one weak signal; detectors are easy to evade)",
+                # Advisory only (INFO, zero weight). Measured on 60 genuine car-damage photos, this detector scores
+                # 22% of them >= 0.8 and 13% >= 0.99, so no threshold makes it safe to raise a verdict on.
+                out.append(Finding(check="ai_image_model", layer="item", severity=Severity.INFO, confidence=round(score, 2),
+                                   title="An AI-image detector rates this image as possibly generated (advisory, not scored).",
+                                   detail=f"Detector score {score:.2f}. This detector also flags about 1 in 5 genuine photos, "
+                                          "so it never changes the verdict on its own; see docs/MODEL_CARDS.md.",
                                    pointer=Pointer(evidence_id=ev.id)))
         return out
 
