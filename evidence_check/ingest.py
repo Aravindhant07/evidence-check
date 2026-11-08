@@ -54,11 +54,16 @@ def load_evidence(path: Path, case_id: str, role: str) -> Evidence:
     ev = Evidence(id=sha[:16], case_id=case_id, file=str(path), name=path.name, role=role, kind=kind, mime=mime,
                   sha256=sha, size=size)
     if kind == "image":
-        with Image.open(path) as im:
-            w, h = im.size
-            if w * h > MAX_PIXELS:
-                raise RejectedFile(f"{path.name}: {w}x{h} exceeds the {MAX_PIXELS} pixel limit")
-            ev.width, ev.height = w, h
+        try:
+            with Image.open(path) as im:  # reads the header only; pixels are never decoded here
+                w, h = im.size
+        except Image.DecompressionBombError as e:  # Pillow's own guard fires first for extreme sizes
+            raise RejectedFile(f"{path.name}: image dimensions exceed the {MAX_PIXELS} pixel limit") from e
+        except (OSError, SyntaxError, ValueError) as e:
+            raise RejectedFile(f"{path.name}: not a readable image ({type(e).__name__})") from e
+        if w * h > MAX_PIXELS:
+            raise RejectedFile(f"{path.name}: {w}x{h} exceeds the {MAX_PIXELS} pixel limit")
+        ev.width, ev.height = w, h
     return ev
 
 
